@@ -283,6 +283,29 @@ static inline int bitmap_to_channel (int bit_set)
     return FAIL;
 }
 
+void save_json_date () {
+    struct json_object *root;
+    struct json_object *array_list,*array_elem;
+    int i;
+    char temp[32];
+
+    root = json_object_new_object();
+    array_list = json_object_new_array();
+    spctrm_scn_common_cmd("touch /root/channel_info.json",NULL);
+    
+    for (i = 0;i < g_input.channel_num;i++) {
+        array_elem = json_object_new_object();
+        sprintf(temp,"%d",realtime_channel_info_5g[i].channel);
+        json_object_object_add(array_elem,"channel",json_object_new_string(temp));
+        sprintf(temp,"%d",realtime_channel_info_5g[i].floornoise);
+        json_object_object_add(array_elem,"floornoise",json_object_new_string(temp));
+        json_object_array_add(array_list,array_elem);
+    }
+    json_object_object_add(root,"channel_list",array_list);
+    json_object_to_file("/root/channel_info.json",root);
+    json_object_put(root);
+
+}
 
 void *spctrm_scn_wireless_ap_scan_thread(void *arg) 
 {
@@ -296,6 +319,7 @@ void *spctrm_scn_wireless_ap_scan_thread(void *arg)
         sem_wait(&g_semaphore);
         
         if (g_status == SCAN_BUSY) {
+            sleep(1);
             /* timestamp */
 
             g_current_time = time(NULL);
@@ -329,7 +353,7 @@ void *spctrm_scn_wireless_ap_scan_thread(void *arg)
         	/* find AP */
 	        i = spctrm_scn_dev_find_ap(&g_device_list);
             g_device_list.device[i].finished_flag = FINISHED;
-            
+            save_json_date ();
             if (timeout_func() == FAIL) {
                 pthread_mutex_lock(&g_mutex);
                 g_status = SCAN_TIMEOUT;
@@ -339,6 +363,7 @@ void *spctrm_scn_wireless_ap_scan_thread(void *arg)
                 printf( "line : %d func %s g_status : %d,",__LINE__,__func__,g_status);
                 pthread_mutex_lock(&g_mutex);
                 memcpy(g_channel_info_5g,realtime_channel_info_5g,sizeof(realtime_channel_info_5g));
+
                 /* 将CPE端的数据存入完成列表，此时AP端的数据还在g_channel_info中 */
                 debug("g_finished_device_list.list_len %d",g_finished_device_list.list_len);
                 memcpy(&g_finished_device_list,&g_device_list,sizeof(struct device_list));
@@ -350,6 +375,7 @@ void *spctrm_scn_wireless_ap_scan_thread(void *arg)
         }
     }
 }
+
 void apclidisable() {
     
     spctrm_scn_common_cmd("iwpriv apcli0 set ApCliEnable=0",NULL);
@@ -374,7 +400,7 @@ void *spctrm_scn_wireless_cpe_scan_thread()
      
         if (g_status == SCAN_BUSY) {
             /* timestamp */
-            // apclidisable();
+            apclidisable();
             debug("CPE SCAN START");
             spctrm_scn_wireless_channel_info(&current_channel_info,PLATFORM_5G);
             memset(realtime_channel_info_5g,0,sizeof(realtime_channel_info_5g));
@@ -398,10 +424,10 @@ void *spctrm_scn_wireless_cpe_scan_thread()
                     goto timeout;
                 }
             }
-            // apclienable();
+            
 
             spctrm_scn_wireless_change_channel(current_channel_info.channel);
-
+            apclienable();
             
             pthread_mutex_lock(&g_mutex);
             memcpy(g_channel_info_5g,realtime_channel_info_5g,sizeof(realtime_channel_info_5g));
@@ -703,7 +729,7 @@ static int timeout_func()
     for (j = 0; j < 30;j++) {
         debug("wait %d",j);
         sleep(1);
-        if (spctrm_scn_tipc_send_get_msg(&g_device_list,2) == SUCCESS) {
+        if (spctrm_scn_tipc_send_auto_get_msg(&g_device_list,2) == SUCCESS) {
             return SUCCESS;
         }
     }
@@ -715,11 +741,11 @@ static int timeout_func()
 int spctrm_scn_wireless_change_channel(int channel) 
 {
     char cmd[MAX_POPEN_BUFFER_SIZE];
-
+    // apclidisable();
     sprintf(cmd,"dev_config update -m radio '{ \"radioList\": [ { \"radioIndex\": \"1\", \"type\":\"5G\", \"channel\":\"%d\" } ]}'",channel);
     // sprintf(cmd,"iwpriv ra0 set channel=%d",channel);
     spctrm_scn_common_cmd(cmd,NULL);
-
+    // apclienable();
     return SUCCESS;
 }
 #elif defined UNIFY_FRAMEWORK_ENABLE

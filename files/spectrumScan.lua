@@ -1,6 +1,6 @@
 #! /usr/bin/lua
 
-module("spectrum_scan", package.seeall);  --必须要有
+module("spectrumScan", package.seeall);  --必须要有
 -- Load module
 ubus = require "ubus"
 json = require "dkjson"
@@ -60,11 +60,11 @@ function module_set(param)
     if not conn then
         error("Failed to connect to ubusd")
     end
-    local status = conn:call("spectrum_scan", "scan",param_tab)
+    local status = conn:call("channel_score", "scan",param_tab)
     config_tab = cjson_safe.encode(status)
     -- Close connection
     conn:close()
-    return (config_tab)
+    return(config_tab)
 end
 
 --dev_sta需要有，dev_config ac_config不调用这个
@@ -79,7 +79,7 @@ function module_get(param)
         if not conn then
             error("Failed to connect to ubusd")
         end
-        local status = conn:call("spectrum_scan", "realtime_get",{})
+        local status = conn:call("channel_score", "realtime_get",{})
         config_tab = cjson_safe.encode(status)
         -- Close connection
         conn:close()
@@ -89,7 +89,7 @@ function module_get(param)
         if not conn then
             error("Failed to connect to ubusd")
         end
-        local status = conn:call("spectrum_scan", "get",{})
+        local status = conn:call("channel_score", "get",{})
 
 
         if  status["status_code"] == "0" then
@@ -101,7 +101,7 @@ function module_get(param)
         -- Close connection
         conn:close()
     end
-    return (config_tab)
+    return(config_tab)
 end
 
 function module_add(param)

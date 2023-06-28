@@ -57,7 +57,8 @@ sem_t g_semaphore;
 
 int main(int argc, char **argv)
 {
-    
+    FILE *fp;
+
     sem_init(&g_semaphore,0,0);
     g_input.scan_time = MIN_SCAN_TIME;
     g_status = SCAN_NOT_START;
@@ -65,6 +66,10 @@ int main(int argc, char **argv)
     spctrm_scn_wireless_wds_state ();
     pthread_mutex_init(&g_mutex, NULL);
 
+    spctrm_scn_common_cmd("mkdir /tmp/spectrum_scan",NULL);
+    fp = fopen("/tmp/spectrum_scan/curl_pid","w+");
+    fprintf(fp,"%d",getpid());
+    fclose(fp);
     if (g_mode == AP_MODE) {
         debug("ap mode");
         if ((pthread_create(&pid1, NULL, spctrm_scn_wireless_ap_scan_thread, NULL)) != 0) {

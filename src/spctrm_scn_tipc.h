@@ -25,6 +25,7 @@
 #define SERVER_TYPE_SCAN    18888
 #define SERVER_TYPE_GET     102
 #define SERVER_TYPE_GET_REPLY  104
+#define SERVER_TYPE_AUTO_GET 1222
 
 #define SERVER_INST  17
 #define BUF_SIZE 40
@@ -37,7 +38,7 @@ typedef struct tipc_recv_packet_head {
 
 int spctrm_scn_tipc_send_get_msg(struct device_list *dst_list,int wait_sec);
 int spctrm_scn_tipc_send_start_msg(struct device_list *list,int wait_sec) ;
-
+int spctrm_scn_tipc_send_auto_get_msg(struct device_list *dst_list,int wait_sec) ;
 int spctrm_scn_tipc_send(__u32 dst_instance,__u32 type,size_t payload_size,char *payload);
 void *spctrm_scn_tipc_thread(void * argv);
 int spctrm_scn_tipc_send_receive(__u32 dst_instance,__u32 type,size_t payload_size,char *payload);

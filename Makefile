@@ -42,7 +42,7 @@ define Package/$(PKG_NAME)/install
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_BIN) ./files/spectrum_scan.init $(1)/etc/init.d/spectrum_scan
 	$(INSTALL_DIR) $(1)/usr/local/lua/dev_sta/
-	$(INSTALL_BIN) ./files/spectrum_scan.lua $(1)/usr/local/lua/dev_sta/spectrum_scan.lua
+	$(INSTALL_BIN) ./files/spectrumScan.lua $(1)/usr/local/lua/dev_sta/spectrumScan.lua
 	$(INSTALL_DIR) $(1)/usr/sbin
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/spectrum_scan.elf $(1)/usr/sbin/spectrum_scan.elf
 	

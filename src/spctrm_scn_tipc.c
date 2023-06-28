@@ -61,6 +61,31 @@ int spctrm_scn_tipc_send_get_msg(struct device_list *dst_list,int wait_sec)
 	return FAIL;
 }
 
+int spctrm_scn_tipc_send_auto_get_msg(struct device_list *dst_list,int wait_sec) 
+{
+	struct device_info *p;
+	__u32 instant;
+	int i;
+	char hello[19] = "client get message";
+
+	list_for_each_device(p,i,dst_list) {
+		if (strcmp(p->role,"ap") != 0 && p->finished_flag != FINISHED ) {	
+			instant = spctrm_scn_common_mac_2_nodeadd(p->mac);
+			printf("line : %d fun : %s instant : %x \r\n",__LINE__,__func__,instant);
+			spctrm_scn_tipc_send(instant,SERVER_TYPE_AUTO_GET,sizeof(hello),hello);
+		}	
+	}
+
+	for (i = 0;i < 3;i++) {
+		sleep(1);
+		if (spctrm_scn_dev_chk_stat(&g_device_list) == SUCCESS)
+		{
+			return SUCCESS;
+		}
+	}
+	return FAIL;
+}
+
 static int wait_for_server(__u32 name_type, __u32 name_instance, int wait)
 {
 	struct sockaddr_tipc topsrv;
@@ -309,7 +334,11 @@ void *spctrm_scn_tipc_thread(void * argv)
 						debug("p->channel_info[0].floornoise %d",p->channel_info[0].floornoise);
 					}
 				}
-	
+			}
+		} else if (head.type == SERVER_TYPE_AUTO_GET) {
+			debug("AUTO GET");
+			if (g_status == SCAN_IDLE) {
+				spctrm_scn_tipc_send(head.instant,SERVER_TYPE_GET_REPLY,sizeof(g_channel_info_5g),g_channel_info_5g);
 			}
 		} else if (head.type == SERVER_TYPE_SCAN) {
 			debug("SERVER_TYPE_SCAN");
