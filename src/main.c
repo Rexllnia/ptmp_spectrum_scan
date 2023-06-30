@@ -32,13 +32,9 @@
 #include "spctrm_scn_ubus.h"
 #include "lib_unifyframe.h"
 #include "spctrm_scn_config.h"
-
+#include "spctrm_scn_rlog.h"
 #define PLATFORM_5G_ENABLE
 #define BRIDGE_PLATFORM
-
-
-
-
 
 extern unsigned char g_mode;
 extern struct device_list g_finished_device_list;
@@ -58,7 +54,9 @@ sem_t g_semaphore;
 int main(int argc, char **argv)
 {
     FILE *fp;
+    int ret;
 
+    ret = FAIL;
     sem_init(&g_semaphore,0,0);
     g_input.scan_time = MIN_SCAN_TIME;
     g_status = SCAN_NOT_START;
@@ -66,29 +64,35 @@ int main(int argc, char **argv)
     spctrm_scn_wireless_wds_state ();
     pthread_mutex_init(&g_mutex, NULL);
 
+    // spctrm_scn_rlog_module_set();
+    // ret = spctrm_scn_rlog_module_enable();
+    debug("result %d \r\n",ret);
+    
+    
     spctrm_scn_common_cmd("mkdir /tmp/spectrum_scan",NULL);
     fp = fopen("/tmp/spectrum_scan/curl_pid","w+");
+    if (fp == NULL) {
+        return 0;
+    }
+
     fprintf(fp,"%d",getpid());
     fclose(fp);
+
     if (g_mode == AP_MODE) {
         debug("ap mode");
         if ((pthread_create(&pid1, NULL, spctrm_scn_wireless_ap_scan_thread, NULL)) != 0) {
 
             return 0;
         }
-
         if ((pthread_create(&pid3, NULL, spctrm_scn_ubus_thread, NULL)) != 0) {
 
             return 0;
         }
-
-#ifdef P2P
-        debug("peer to peer");
         if ((pthread_create(&pid2, NULL, spctrm_scn_tipc_thread, NULL)) != 0) {
 
             return 0;
         }
-#endif
+
     } else if (g_mode == CPE_MODE) {
         debug("cpe mode");
         if ((pthread_create(&pid1, NULL, spctrm_scn_wireless_cpe_scan_thread, NULL)) != 0) {
@@ -108,40 +112,25 @@ if (g_mode == AP_MODE) {
 	
 		return 0;
     }
-
 	if (pthread_join(pid2, NULL) != 0) {
 	
 		return 0;
     }
-
-#ifdef P2P
 	if (pthread_join(pid3, NULL) != 0) {
 	
 		return 0;
     }
-#endif
+
 
 } else if (g_mode == CPE_MODE) {
     if (pthread_join(pid1, NULL) != 0) {
     
         return 0;
     }
-#ifdef P2P
-        if (pthread_join(pid2, NULL) != 0) {
+    if (pthread_join(pid2, NULL) != 0) {
         
             return 0;
-        }
-
-#elif defined CS
-    if (pthread_join(pid2, NULL) != 0) {
-    
-        return 0;
     }
-    if (pthread_join(pid3, NULL) != 0) {
-    
-        return 0;
-    }
-#endif    
 }
 
 	return 0;

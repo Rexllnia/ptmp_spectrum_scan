@@ -291,6 +291,7 @@ void save_json_date () {
 
     root = json_object_new_object();
     array_list = json_object_new_array();
+    spctrm_scn_common_cmd("rm /root/channel_info.json",NULL);
     spctrm_scn_common_cmd("touch /root/channel_info.json",NULL);
     
     for (i = 0;i < g_input.channel_num;i++) {
@@ -320,7 +321,6 @@ void *spctrm_scn_wireless_ap_scan_thread(void *arg)
         
         if (g_status == SCAN_BUSY) {
             /* timestamp */
-
             g_current_time = time(NULL);
             debug("AP SCAN START");
             spctrm_scn_wireless_channel_info(&current_channel_info,PLATFORM_5G);
@@ -337,7 +337,6 @@ void *spctrm_scn_wireless_ap_scan_thread(void *arg)
 
                     channel_scan(&realtime_channel_info_5g[j],g_input.scan_time);
                
-
                     debug("g_input.channel_bitmap : %ld",g_input.channel_bitmap);
                     realtime_channel_info_5g[j].score = spctrm_scn_wireless_channel_score(&realtime_channel_info_5g[j]);
                     printf("score %f\r\n",realtime_channel_info_5g[j].score);
@@ -559,7 +558,7 @@ void channel_scan(struct channel_info *input,int scan_time)
     int floornoise_temp[MAX_SCAN_TIME];
     int channel_temp[MAX_SCAN_TIME];
     time_t timestamp[MAX_SCAN_TIME];
-    struct tm *local_time; // 将时间戳转换为本地时间
+    struct tm *local_time; 
 
     if (scan_time > MAX_SCAN_TIME) {
         scan_time = MAX_SCAN_TIME;

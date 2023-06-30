@@ -146,7 +146,6 @@ void spctrm_scn_dev_wds_list(struct device_list *device_list)
 	device_list->list_len = json_object_array_length(list_pair_obj);
 
 	for (i = 0;i < json_object_array_length(list_pair_obj);i++) {
-		
 		list_pair_elem = json_object_array_get_idx(list_pair_obj,i);/* xxx */
 		sn_obj = json_object_object_get(list_pair_elem,"sn");
 		role_obj = json_object_object_get(list_pair_elem,"role");

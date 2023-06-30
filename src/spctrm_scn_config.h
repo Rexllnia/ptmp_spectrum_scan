@@ -69,4 +69,3 @@ struct channel_info {
 
 
 #endif
-

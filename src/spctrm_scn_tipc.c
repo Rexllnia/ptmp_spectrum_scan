@@ -257,12 +257,7 @@ void *spctrm_scn_tipc_thread(void * argv)
     struct timeval timeout={4,0};
 	unsigned char mac[20];
 	__u32 instant;
-#ifdef CONFIG_TIPC_CORE_DUBUG
-    struct rlimit limit;
-    limit.rlim_cur = RLIM_INFINITY;
-    limit.rlim_max = RLIM_INFINITY;
-    setrlimit(RLIMIT_CORE, &limit);
-#endif
+
 	printf("****** TIPC server program started ******\n\n");
 
 	sem_init(&receive_finish_semaphore,0,0);
@@ -298,6 +293,7 @@ void *spctrm_scn_tipc_thread(void * argv)
 		pkt = (char *)malloc(sizeof(char) * pkt_size);
 		if (pkt == NULL) {
 			debug("malloc FAIL");
+			exit(0);
 		}
 		debug("malloc");
 		if (0 >= recvfrom(sd, pkt,pkt_size, 0,
@@ -325,8 +321,7 @@ void *spctrm_scn_tipc_thread(void * argv)
 				if (p->finished_flag != FINISHED) {
 					instant = spctrm_scn_common_mac_2_nodeadd(p->mac);
 					debug("instant : %x ",instant);
-					if (instant == head.instant) {	
-						
+					if (instant == head.instant) {			
 						memcpy(p->channel_info,pkt+sizeof(tipc_recv_packet_head_t),head.payload_size);
 						p->finished_flag = FINISHED;
 						debug("p->finished_flag %d",p->finished_flag);
@@ -344,7 +339,7 @@ void *spctrm_scn_tipc_thread(void * argv)
 			debug("SERVER_TYPE_SCAN");
 			while (1) {
 				debug("g_status %d",g_status);
-			if (g_status == SCAN_IDLE || g_status == SCAN_NOT_START) {
+				if (g_status == SCAN_IDLE || g_status == SCAN_NOT_START) {
 					pthread_mutex_lock(&g_mutex);
 					memset(realtime_channel_info_5g,0,sizeof(realtime_channel_info_5g));
 					memcpy(&g_input,(pkt+sizeof(tipc_recv_packet_head_t)),sizeof(g_input));
@@ -364,7 +359,10 @@ void *spctrm_scn_tipc_thread(void * argv)
 	debug("free");
 	free(pkt);
 	}
-		
     return 0;
 }
 
+static void server_type_scan_reply_cb() 
+{
+	
+}
