@@ -319,7 +319,6 @@ void *spctrm_scn_wireless_ap_scan_thread(void *arg)
         sem_wait(&g_semaphore);
         
         if (g_status == SCAN_BUSY) {
-            sleep(1);
             /* timestamp */
 
             g_current_time = time(NULL);
@@ -337,7 +336,7 @@ void *spctrm_scn_wireless_ap_scan_thread(void *arg)
                     spctrm_scn_wireless_change_channel(realtime_channel_info_5g[j].channel);
 
                     channel_scan(&realtime_channel_info_5g[j],g_input.scan_time);
-                    sleep(1);
+               
 
                     debug("g_input.channel_bitmap : %ld",g_input.channel_bitmap);
                     realtime_channel_info_5g[j].score = spctrm_scn_wireless_channel_score(&realtime_channel_info_5g[j]);
@@ -400,7 +399,7 @@ void *spctrm_scn_wireless_cpe_scan_thread()
      
         if (g_status == SCAN_BUSY) {
             /* timestamp */
-            apclidisable();
+        
             debug("CPE SCAN START");
             spctrm_scn_wireless_channel_info(&current_channel_info,PLATFORM_5G);
             memset(realtime_channel_info_5g,0,sizeof(realtime_channel_info_5g));
@@ -413,7 +412,7 @@ void *spctrm_scn_wireless_cpe_scan_thread()
                     spctrm_scn_wireless_change_channel(realtime_channel_info_5g[j].channel);
 
                     channel_scan(&realtime_channel_info_5g[j],g_input.scan_time);
-                    sleep(1);
+                    
                     printf("%ld\r\n",g_input.channel_bitmap);
                     realtime_channel_info_5g[j].score = spctrm_scn_wireless_channel_score(&realtime_channel_info_5g[j]);
                     printf("------------------\r\n");
@@ -427,7 +426,7 @@ void *spctrm_scn_wireless_cpe_scan_thread()
             
 
             spctrm_scn_wireless_change_channel(current_channel_info.channel);
-            apclienable();
+            // apclienable();
             
             pthread_mutex_lock(&g_mutex);
             memcpy(g_channel_info_5g,realtime_channel_info_5g,sizeof(realtime_channel_info_5g));
@@ -553,13 +552,15 @@ int spctrm_scn_wireless_channel_info(struct channel_info *info,int band)
 void channel_scan(struct channel_info *input,int scan_time) 
 {
     FILE *fp;
-    int i;
+    int i,err_count;
     struct channel_info info[MAX_SCAN_TIME];
     int utilization_temp[MAX_SCAN_TIME];
     int obss_util_temp[MAX_SCAN_TIME];
     int floornoise_temp[MAX_SCAN_TIME];
     int channel_temp[MAX_SCAN_TIME];
-    
+    time_t timestamp[MAX_SCAN_TIME];
+    struct tm *local_time; // 将时间戳转换为本地时间
+
     if (scan_time > MAX_SCAN_TIME) {
         scan_time = MAX_SCAN_TIME;
     } 
@@ -568,10 +569,11 @@ void channel_scan(struct channel_info *input,int scan_time)
         scan_time = MIN_SCAN_TIME;
     }     
 
+    err_count = 0;
     for (i = 0 ;i < scan_time ;i++) {
         sleep(1);
-
         spctrm_scn_wireless_channel_info(&info[i],PLATFORM_5G);
+        timestamp[i] = time(NULL);
         debug("current channel %d",info[i].channel);
     }
     
@@ -579,6 +581,7 @@ void channel_scan(struct channel_info *input,int scan_time)
     fprintf(fp,"\r\n********channel %d ***********\r\n",info[0].channel);
     fprintf(fp,"bw %d\r\n",input->bw=info[0].bw);
 
+    fprintf(fp,"date\t\t\t");
     fprintf(fp,"channel\t\t");
     fprintf(fp,"floornoise\t");
     fprintf(fp,"utilization\t");
@@ -586,22 +589,36 @@ void channel_scan(struct channel_info *input,int scan_time)
     fprintf(fp,"rx_util\t\t");
     fprintf(fp,"tx_util\r\n");
 
+	
     for (i = 0 ;i < scan_time ;i++) {
+    	
+	    local_time = localtime(&timestamp[i]);
+        fprintf(fp,"%d:%d:%d\t\t\t",local_time->tm_hour, local_time->tm_min, local_time->tm_sec);
+        
         fprintf(fp,"%d\t\t",channel_temp[i] = info[i].channel);
-        fprintf(fp,"%d\t\t",floornoise_temp[i] = info[i].floornoise);
-        fprintf(fp,"%d\t\t",utilization_temp[i] = info[i].utilization);
-        fprintf(fp,"%d\t\t",obss_util_temp[i] = info[i].obss_util);
-        fprintf(fp,"%d\t\t",info[i].rx_util);
-        fprintf(fp,"%d\r\n",info[i].tx_util);
+        if (info[i].channel == info[0].channel) {
+            fprintf(fp,"%d\t\t",floornoise_temp[i] = info[i].floornoise);
+            fprintf(fp,"%d\t\t",utilization_temp[i] = info[i].utilization);
+            fprintf(fp,"%d\t\t",obss_util_temp[i] = info[i].obss_util);
+            fprintf(fp,"%d\t\t",info[i].rx_util);
+            fprintf(fp,"%d\r\n",info[i].tx_util);            
+        } else {
+            err_count++ ;
+            fprintf(fp,"%d\t\t",-1);
+            fprintf(fp,"%d\t\t",-1);
+            fprintf(fp,"%d\t\t",-1);
+            fprintf(fp,"%d\t\t",-1);
+            fprintf(fp,"%d\r\n",-1);              
+        }
     }
 
-    printf("median floornoise%d \r\n",input->floornoise = median(floornoise_temp,scan_time));
-    printf("median utilization%d \r\n",input->utilization = median(utilization_temp,scan_time));
-    printf("median obss_util%d \r\n",input->obss_util = median(obss_util_temp,scan_time));
+    printf("median floornoise%d \r\n",input->floornoise = median(floornoise_temp,scan_time - err_count));
+    printf("median utilization%d \r\n",input->utilization = median(utilization_temp,scan_time - err_count));
+    printf("median obss_util%d \r\n",input->obss_util = median(obss_util_temp,scan_time - err_count));
     
     fprintf(fp,"*******************************************************\r\n");
     fclose(fp);
-
+    
     debug("g_status %d",g_status);
 
 }
@@ -741,11 +758,12 @@ static int timeout_func()
 int spctrm_scn_wireless_change_channel(int channel) 
 {
     char cmd[MAX_POPEN_BUFFER_SIZE];
-    // apclidisable();
-    sprintf(cmd,"dev_config update -m radio '{ \"radioList\": [ { \"radioIndex\": \"1\", \"type\":\"5G\", \"channel\":\"%d\" } ]}'",channel);
-    // sprintf(cmd,"iwpriv ra0 set channel=%d",channel);
+    sleep(1);
+    // sprintf(cmd,"dev_config update -m radio '{ \"radioList\": [ { \"radioIndex\": \"1\", \"type\":\"5G\", \"channel\":\"%d\" } ]}'",channel);
+    sprintf(cmd,"iwpriv ra0 set channel=%d",channel);
+    sleep(4);
     spctrm_scn_common_cmd(cmd,NULL);
-    // apclienable();
+    
     return SUCCESS;
 }
 #elif defined UNIFY_FRAMEWORK_ENABLE
