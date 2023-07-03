@@ -42,5 +42,5 @@ int spctrm_scn_tipc_send_auto_get_msg(struct device_list *dst_list,int wait_sec)
 int spctrm_scn_tipc_send(__u32 dst_instance,__u32 type,size_t payload_size,char *payload);
 void *spctrm_scn_tipc_thread(void * argv);
 int spctrm_scn_tipc_send_receive(__u32 dst_instance,__u32 type,size_t payload_size,char *payload);
-
+static void server_type_scan_reply_cb(tipc_recv_packet_head_t *head,char *pkt);
 #endif

@@ -434,7 +434,6 @@ void *spctrm_scn_wireless_cpe_scan_thread()
             g_status = SCAN_IDLE;
             g_input.scan_time = MIN_SCAN_TIME; /* restore scan time */
             pthread_mutex_unlock(&g_mutex);
-
         }
 timeout:
     if (g_status == SCAN_TIMEOUT) {
@@ -577,6 +576,9 @@ void channel_scan(struct channel_info *input,int scan_time)
     }
     
     fp = fopen("./channel_info","a+");
+    if (fp == NULL) {
+        return;
+    }
     fprintf(fp,"\r\n********channel %d ***********\r\n",info[0].channel);
     fprintf(fp,"bw %d\r\n",input->bw=info[0].bw);
 

@@ -94,9 +94,11 @@ function module_get(param)
 
         if  status["status_code"] == "0" then
             config_tab = file_read(config_file)
-        else
+        elseif status["status_code"] == "2" then
             config_tab = cjson_safe.encode(status)
             file_write(config_file,config_tab)
+        else 
+            config_tab = cjson_safe.encode(status)         
         end
         -- Close connection
         conn:close()

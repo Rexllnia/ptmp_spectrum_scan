@@ -11,8 +11,8 @@ extern volatile int g_status;
 extern unsigned char g_mode;
 extern struct user_input g_input;
 extern struct device_list g_finished_device_list,g_device_list;
-extern struct channel_info g_channel_info_5g[36];
-extern struct channel_info realtime_channel_info_5g[36];
+extern struct channel_info g_channel_info_5g[MAX_BAND_5G_CHANNEL_NUM];
+extern struct channel_info realtime_channel_info_5g[MAX_BAND_5G_CHANNEL_NUM];
 extern pthread_mutex_t g_mutex;
 extern sem_t g_semaphore;
 
@@ -159,6 +159,9 @@ int spctrm_scn_tipc_send_receive(__u32 dst_instance,__u32 type,size_t payload_si
 	
 	pkt_size = sizeof(tipc_recv_packet_head_t) + payload_size;
 	pkt = (char*)malloc(pkt_size * sizeof(char));
+	if (pkt == NULL) {
+		return FAIL;
+	}
 	memset(mac,0,sizeof(mac));
     spctrm_scn_common_read_file("/proc/rg_sys/sys_mac",mac,sizeof(mac) - 1);
     src_instant = spctrm_scn_common_mac_2_nodeadd(mac);
@@ -209,6 +212,9 @@ int spctrm_scn_tipc_send(__u32 dst_instance,__u32 type,size_t payload_size,char 
 	
 	pkt_size = sizeof(tipc_recv_packet_head_t) + payload_size;
 	pkt = (char*)malloc(pkt_size * sizeof(char));
+	if (pkt == NULL) {
+		return FAIL;
+	}
 	memset(mac,0,sizeof(mac));
     spctrm_scn_common_read_file("/proc/rg_sys/sys_mac",mac,sizeof(mac) - 1);
     src_instant = spctrm_scn_common_mac_2_nodeadd(mac);
@@ -313,23 +319,7 @@ void *spctrm_scn_tipc_thread(void * argv)
 			}
 
 		} else if (head.type == SERVER_TYPE_GET_REPLY) {
-			struct device_info *p;
-			int i;
-			__u32 instant = 0;
-			debug("list len %d",g_finished_device_list.list_len);
-			list_for_each_device(p,i,&g_device_list) {
-				if (p->finished_flag != FINISHED) {
-					instant = spctrm_scn_common_mac_2_nodeadd(p->mac);
-					debug("instant : %x ",instant);
-					if (instant == head.instant) {			
-						memcpy(p->channel_info,pkt+sizeof(tipc_recv_packet_head_t),head.payload_size);
-						p->finished_flag = FINISHED;
-						debug("p->finished_flag %d",p->finished_flag);
-						debug("p->channel_info[0].channel %d",p->channel_info[0].channel); 
-						debug("p->channel_info[0].floornoise %d",p->channel_info[0].floornoise);
-					}
-				}
-			}
+			server_type_scan_reply_cb(&head,pkt); 
 		} else if (head.type == SERVER_TYPE_AUTO_GET) {
 			debug("AUTO GET");
 			if (g_status == SCAN_IDLE) {
@@ -362,7 +352,24 @@ void *spctrm_scn_tipc_thread(void * argv)
     return 0;
 }
 
-static void server_type_scan_reply_cb() 
+static void server_type_scan_reply_cb(tipc_recv_packet_head_t *head,char *pkt) 
 {
-	
+	struct device_info *p;
+	int i;
+	__u32 instant = 0;
+
+	debug("list len %d",g_finished_device_list.list_len);
+	list_for_each_device(p,i,&g_device_list) {
+		if (p->finished_flag != FINISHED) {
+			instant = spctrm_scn_common_mac_2_nodeadd(p->mac);
+			debug("instant : %x ",instant);
+			if (instant == head->instant) {			
+				memcpy(p->channel_info,pkt+sizeof(tipc_recv_packet_head_t),head->payload_size);
+				p->finished_flag = FINISHED;
+				debug("p->finished_flag %d",p->finished_flag);
+				debug("p->channel_info[0].channel %d",p->channel_info[0].channel); 
+				debug("p->channel_info[0].floornoise %d",p->channel_info[0].floornoise);
+			}
+		}
+	}	
 }
