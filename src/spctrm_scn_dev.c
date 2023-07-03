@@ -99,7 +99,6 @@ void spctrm_scn_dev_wds_list(struct device_list *device_list)
 	char *rbuf;
 	char sn[SN_LEN];
 	int i,j,find_flag;
-
 	json_object *rbuf_root;
 	json_object *list_all_obj;
 	json_object *list_pair_obj;
@@ -146,7 +145,7 @@ void spctrm_scn_dev_wds_list(struct device_list *device_list)
 	device_list->list_len = json_object_array_length(list_pair_obj);
 
 	for (i = 0;i < json_object_array_length(list_pair_obj);i++) {
-		list_pair_elem = json_object_array_get_idx(list_pair_obj,i);/* xxx */
+		list_pair_elem = json_object_array_get_idx(list_pair_obj,i);
 		sn_obj = json_object_object_get(list_pair_elem,"sn");
 		role_obj = json_object_object_get(list_pair_elem,"role");
 		mac_obj = json_object_object_get(list_pair_elem,"mac");

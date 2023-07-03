@@ -65,7 +65,7 @@ int main(int argc, char **argv)
     pthread_mutex_init(&g_mutex, NULL);
 
     // spctrm_scn_rlog_module_set();
-    // ret = spctrm_scn_rlog_module_enable();
+    ret = spctrm_scn_rlog_module_enable();
     debug("result %d \r\n",ret);
     
     

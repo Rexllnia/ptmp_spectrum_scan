@@ -41,13 +41,13 @@ int spctrm_scn_tipc_send_get_msg(struct device_list *dst_list,int wait_sec)
 	struct device_info *p;
 	__u32 instant;
 	int i;
-	char hello[19] = "client get message";
+	char msg[19] = "client get message";
 
 	list_for_each_device(p,i,dst_list) {
 		if (strcmp(p->role,"ap") != 0 && p->finished_flag != FINISHED ) {	
 			instant = spctrm_scn_common_mac_2_nodeadd(p->mac);
 			debug("line : %d fun : %s instant : %x \r\n",__LINE__,__func__,instant);
-			spctrm_scn_tipc_send(instant,SERVER_TYPE_GET,sizeof(hello),hello);
+			spctrm_scn_tipc_send(instant,SERVER_TYPE_GET,sizeof(msg),msg);
 		}	
 	}
 
@@ -66,13 +66,13 @@ int spctrm_scn_tipc_send_auto_get_msg(struct device_list *dst_list,int wait_sec)
 	struct device_info *p;
 	__u32 instant;
 	int i;
-	char hello[19] = "client get message";
+	char msg[19] = "client get message";
 
 	list_for_each_device(p,i,dst_list) {
 		if (strcmp(p->role,"ap") != 0 && p->finished_flag != FINISHED ) {	
 			instant = spctrm_scn_common_mac_2_nodeadd(p->mac);
 			debug("line : %d fun : %s instant : %x \r\n",__LINE__,__func__,instant);
-			spctrm_scn_tipc_send(instant,SERVER_TYPE_AUTO_GET,sizeof(hello),hello);
+			spctrm_scn_tipc_send(instant,SERVER_TYPE_AUTO_GET,sizeof(msg),msg);
 		}	
 	}
 
