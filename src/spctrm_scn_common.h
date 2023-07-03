@@ -28,4 +28,5 @@ char spctrm_scn_common_read_file(char *name,char *buf,char len);
 int spctrm_scn_common_cmd(char *cmd,char **rbuf);
 void spctrm_scn_common_get_sn(char *sn);
 int spctrm_scn_common_uci_anonymous_get(char *file, char *type, char *name, char *option, char *buf, int len);
+void spctrm_scn_common_dump_packet(unsigned char *src, unsigned int len);
 #endif

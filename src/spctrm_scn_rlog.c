@@ -43,6 +43,7 @@ int spctrm_scn_rlog_module_enable() {
     int ret;
     int timeout = 30;
     ctx = ubus_connect(ubus_socket);
+    
     if (!ctx)
     {
         fprintf(stderr, "Failed to connect to ubus\n");
@@ -56,10 +57,10 @@ int spctrm_scn_rlog_module_enable() {
     ret = ubus_lookup_id(ctx, "rlog", &id);
     if (ret != UBUS_STATUS_OK)
     {
-        printf("lookup scan_prog failed\n");
+        debug("lookup scan_prog failed\n");
         return FAIL;
     } else {
-        printf("lookup scan_prog successs\n");
+        debug("lookup scan_prog successs\n");
     }
     ubus_invoke(ctx, id, "module_enable", b.head, scanreq_prog_cb, NULL, timeout * 1000);
     ubus_free(ctx);

@@ -21,7 +21,7 @@ static void print_bits(long num) {
 
     for (i = 0; i < sizeof(long) * 8; i++) {
         if ((num & (1L << i)) != 0) {
-            printf("Bit %d is set\n", i);
+            debug("Bit %d is set\n", i);
         }
     }
 }
@@ -71,7 +71,7 @@ int spctrm_scn_wireless_country_channel(int bw,long *bitmap_2G,long *bitmap_5G,i
     json_object_object_add(input_param_root, "qry_type", json_object_new_string("channellist"));
     
     param_input = json_object_to_json_string(input_param_root);
-	printf("%s\n",param_input);
+	debug("%s\n",param_input);
 
 #ifdef UNIFY_FRAMEWORK_ENABLE
     msg_obj = (uf_cmd_msg_t*)malloc(sizeof(uf_cmd_msg_t));
@@ -86,12 +86,12 @@ int spctrm_scn_wireless_country_channel(int bw,long *bitmap_2G,long *bitmap_5G,i
     msg_obj->module = "country_channel";               /* 必填参数，其它可选参数根据需要使用 */
     msg_obj->caller = "group_change";       /* 自定义字符串，标记调用者 */
     ret = uf_client_call(msg_obj, &rbuf, NULL);
-    printf("%s\n",rbuf);
+    debug("%s\n",rbuf);
 
 #elif defined POPEN_CMD_ENABLE
-	printf("%s\n",param_input);
+	debug("%s\n",param_input);
     sprintf(cmd,"dev_sta get -m country_channel '%s'",param_input);
-    printf("%s\r\n",cmd);
+    debug("%s\r\n",cmd);
     spctrm_scn_common_cmd(cmd,&rbuf);    
 #endif
 
@@ -118,14 +118,14 @@ int spctrm_scn_wireless_country_channel(int bw,long *bitmap_2G,long *bitmap_5G,i
             frequency_obj = json_object_object_get(elem, "frequency");
             channel_obj = json_object_object_get(elem, "channel");
             strcpy(channel,json_object_get_string(channel_obj));
-            printf("%s\r\n",channel);
+            debug("%s\r\n",channel);
             *bitmap_2G |= 1<<atoi(channel);
         }
     } 
 
 
-    printf("bitmap_5G %d\n",*bitmap_5G);
-    printf("bitmap_2G %d\n",*bitmap_2G);
+    debug("bitmap_5G %d\n",*bitmap_5G);
+    debug("bitmap_2G %d\n",*bitmap_2G);
     print_bits(*bitmap_5G);
 
 	json_object_put(input_param_root);
@@ -192,7 +192,7 @@ int spctrm_scn_wireless_country_channel(int bw,long *bitmap_2G,long *bitmap_5G,i
 
     
     param_input = json_object_to_json_string(input_param_root);
-	printf("%s\n",param_input);
+	debug("%s\n",param_input);
 
 #ifdef UNIFY_FRAMEWORK_ENABLE
     msg_obj = (uf_cmd_msg_t*)malloc(sizeof(uf_cmd_msg_t));
@@ -207,12 +207,12 @@ int spctrm_scn_wireless_country_channel(int bw,long *bitmap_2G,long *bitmap_5G,i
     msg_obj->module = "country_channel";               /* 必填参数，其它可选参数根据需要使用 */
     msg_obj->caller = "group_change";       /* 自定义字符串，标记调用者 */
     ret = uf_client_call(msg_obj, &rbuf, NULL);
-    printf("%s\n",rbuf);
+    debug("%s\n",rbuf);
 
 #elif defined POPEN_CMD_ENABLE
-	printf("%s\n",param_input);
+	debug("%s\n",param_input);
     sprintf(cmd,"dev_sta get -m country_channel '%s'",param_input);
-    printf("%s\r\n",cmd);
+    debug("%s\r\n",cmd);
     spctrm_scn_common_cmd(cmd,&rbuf);    
 #endif
 
@@ -224,7 +224,7 @@ int spctrm_scn_wireless_country_channel(int bw,long *bitmap_2G,long *bitmap_5G,i
         frequency_obj = json_object_object_get(elem, "frequency");
 		channel_obj = json_object_object_get(elem, "channel");
         strcpy(channel,json_object_get_string(channel_obj));
-		printf("%s\r\n",channel);
+		debug("%s\r\n",channel);
         *bitmap_5G |= 1 << channel_to_bitmap(atoi(channel));  /*36 ~ 144    149 153 157 161 165 169 173 177 181*/
         }
     }
@@ -235,12 +235,12 @@ int spctrm_scn_wireless_country_channel(int bw,long *bitmap_2G,long *bitmap_5G,i
             frequency_obj = json_object_object_get(elem, "frequency");
             channel_obj = json_object_object_get(elem, "channel");
             strcpy(channel,json_object_get_string(channel_obj));
-            printf("%s\r\n",channel);
+            debug("%s\r\n",channel);
             *bitmap_2G |= 1 << atoi(channel);
         }
     }
-    printf("bitmap_5G %d\n",*bitmap_5G);
-    printf("bitmap_2G %d\n",*bitmap_2G);
+    debug("bitmap_5G %d\n",*bitmap_5G);
+    debug("bitmap_2G %d\n",*bitmap_2G);
     print_bits(*bitmap_5G);
 
 
@@ -294,6 +294,8 @@ void save_json_date () {
     spctrm_scn_common_cmd("rm /root/channel_info.json",NULL);
     spctrm_scn_common_cmd("touch /root/channel_info.json",NULL);
     
+    debug("");
+
     for (i = 0;i < g_input.channel_num;i++) {
         array_elem = json_object_new_object();
         sprintf(temp,"%d",realtime_channel_info_5g[i].channel);
@@ -307,7 +309,6 @@ void save_json_date () {
     json_object_put(root);
 
 }
-
 void *spctrm_scn_wireless_ap_scan_thread(void *arg) 
 {
 
@@ -339,8 +340,8 @@ void *spctrm_scn_wireless_ap_scan_thread(void *arg)
                
                     debug("g_input.channel_bitmap : %ld",g_input.channel_bitmap);
                     realtime_channel_info_5g[j].score = spctrm_scn_wireless_channel_score(&realtime_channel_info_5g[j]);
-                    printf("score %f\r\n",realtime_channel_info_5g[j].score);
-                    printf("------------------\r\n");
+                    debug("score %f\r\n",realtime_channel_info_5g[j].score);
+                    debug("------------------\r\n");
                     j++;  
                 }
             }
@@ -351,14 +352,14 @@ void *spctrm_scn_wireless_ap_scan_thread(void *arg)
         	/* find AP */
 	        i = spctrm_scn_dev_find_ap(&g_device_list);
             g_device_list.device[i].finished_flag = FINISHED;
-            save_json_date ();
             if (timeout_func() == FAIL) {
                 pthread_mutex_lock(&g_mutex);
                 g_status = SCAN_TIMEOUT;
                 g_input.scan_time = MIN_SCAN_TIME; /* restore scan time */
                 pthread_mutex_unlock(&g_mutex);
             } else {
-                printf( "line : %d func %s g_status : %d,",__LINE__,__func__,g_status);
+                debug( "line : %d func %s g_status : %d,",__LINE__,__func__,g_status);
+
                 pthread_mutex_lock(&g_mutex);
                 memcpy(g_channel_info_5g,realtime_channel_info_5g,sizeof(realtime_channel_info_5g));
 
@@ -369,6 +370,7 @@ void *spctrm_scn_wireless_ap_scan_thread(void *arg)
                 g_status = SCAN_IDLE;
                 g_input.scan_time = MIN_SCAN_TIME; /* restore scan time */
                 pthread_mutex_unlock(&g_mutex);
+                spctrm_scn_common_cmd("dev_sta get -m spectrumScan '{\"real_time\":false}'",NULL);
             }
         }
     }
@@ -412,9 +414,9 @@ void *spctrm_scn_wireless_cpe_scan_thread()
 
                     channel_scan(&realtime_channel_info_5g[j],g_input.scan_time);
                     
-                    printf("%ld\r\n",g_input.channel_bitmap);
+                    debug("%ld\r\n",g_input.channel_bitmap);
                     realtime_channel_info_5g[j].score = spctrm_scn_wireless_channel_score(&realtime_channel_info_5g[j]);
-                    printf("------------------\r\n");
+                    debug("------------------\r\n");
                     j++;  
                 }
                 
@@ -425,7 +427,6 @@ void *spctrm_scn_wireless_cpe_scan_thread()
             
 
             spctrm_scn_wireless_change_channel(current_channel_info.channel);
-            // apclienable();
             
             pthread_mutex_lock(&g_mutex);
             memcpy(g_channel_info_5g,realtime_channel_info_5g,sizeof(realtime_channel_info_5g));
@@ -451,7 +452,6 @@ static int quick_select(int* arr, int len, int k)
     int pivot, i, j, tmp;
 
     pivot = arr[len / 2];
-
     for (i = 0, j = len - 1;; i++, j--) {
         while (arr[i] < pivot) i++;
         while (arr[j] > pivot) j--;
@@ -490,7 +490,7 @@ int spctrm_scn_wireless_channel_info(struct channel_info *info,int band)
     FILE *fp;
     char *rbuf;
     char *p;
-    char cmd[1024];
+    char cmd[MAX_POPEN_BUFFER_SIZE];
 
     if (info == NULL) {
          return FAIL;
@@ -611,9 +611,9 @@ void channel_scan(struct channel_info *input,int scan_time)
         }
     }
 
-    printf("median floornoise%d \r\n",input->floornoise = median(floornoise_temp,scan_time - err_count));
-    printf("median utilization%d \r\n",input->utilization = median(utilization_temp,scan_time - err_count));
-    printf("median obss_util%d \r\n",input->obss_util = median(obss_util_temp,scan_time - err_count));
+    debug("median floornoise%d \r\n",input->floornoise = median(floornoise_temp,scan_time - err_count));
+    debug("median utilization%d \r\n",input->utilization = median(utilization_temp,scan_time - err_count));
+    debug("median obss_util%d \r\n",input->obss_util = median(obss_util_temp,scan_time - err_count));
     
     fprintf(fp,"*******************************************************\r\n");
     fclose(fp);
@@ -774,7 +774,7 @@ int spctrm_scn_wireless_change_channel(int channel)
     char param[100];
     
     sprintf(param,"{\"radioList\": [ { \"radioIndex\": \"1\", \"type\":\"5G\", \"channel\":\"%d\" }]}",channel);
-    printf("%s\r\n",param);
+    debug("%s\r\n",param);
     msg_obj = (uf_cmd_msg_t*)malloc(sizeof(uf_cmd_msg_t));
     if (msg_obj == NULL) {
         return -1;
@@ -786,7 +786,7 @@ int spctrm_scn_wireless_change_channel(int channel)
     msg_obj->module = "radio";             /* 必填参数，其它可选参数根据需要使用 */
     msg_obj->caller = "group_change";   /* 自定义字符串，标记调用者 */
     ret = uf_client_call(msg_obj, &rbuf, NULL);
-    // printf("%s\r\n",rbuf);
+    // debug("%s\r\n",rbuf);
     if (rbuf) {
       free(rbuf);
     }

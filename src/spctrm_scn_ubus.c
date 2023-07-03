@@ -134,9 +134,10 @@ static void realtime_get_reply(struct uloop_timeout *t)
 
     char temp[512];
     int i;
-
+    void *scan_list_obj;
+    
     blob_buf_init(&buf, 0);
-    printf("%s\r\n", __func__);
+    debug("%s\r\n", __func__);
 
     
 
@@ -157,7 +158,7 @@ static void realtime_get_reply(struct uloop_timeout *t)
     spctrm_scn_tipc_send_get_msg(&g_device_list, 4);
 
     /* scan list*/
-    void *const scan_list_obj = blobmsg_open_array(&buf, "scan_list");
+    scan_list_obj = blobmsg_open_array(&buf, "scan_list");
 
     for (i = 0; i < g_device_list.list_len; i++)
     {
@@ -223,20 +224,23 @@ static void add_bw40_blobmsg(struct blob_buf *buf, struct device_info *device)
 static void add_device_info_blobmsg(struct blob_buf *buf, struct device_info *device, int is_real_time)
 {
     void *const device_obj = blobmsg_open_table(buf, NULL);
+    void *BAND_5G_obj;
+    void *bw20_table;
 
-    printf("%s  %s \r\n", __func__, device->series_no);
-    printf("%s  %s \r\n", __func__, device->role);
+    debug("%s  %s \r\n", __func__, device->series_no);
+    debug("%s  %s \r\n", __func__, device->role);
     blobmsg_add_string(buf, "SN", device->series_no);
     blobmsg_add_string(buf, "role", device->role);
 
     /* 5G */
-    void *const BAND_5G_obj = blobmsg_open_table(buf, "5G");
-    // blobmsg_add_string(buf, "band","5");
+    BAND_5G_obj = blobmsg_open_table(buf, "5G");
 
-    void *const bw20_table = blobmsg_open_table(buf, "bw_20");
-    // blobmsg_add_string(buf,"bw","20");
+    bw20_table = blobmsg_open_table(buf, "bw_20");
+
     add_score_list_blobmsg(buf, g_input.channel_num, device->channel_info);
-    // add_channel_info_blobmsg(buf,realtime_channel_info_5g,g_input.channel_num);
+#ifdef ADD_CHANNEL_INFO_BLOB_MSG
+    add_channel_info_blobmsg(buf,realtime_channel_info_5g,g_input.channel_num);
+#endif
     blobmsg_close_table(buf, bw20_table);
 
     if (is_real_time == false)
@@ -266,6 +270,7 @@ static void add_channel_info_blobmsg(struct blob_buf *buf, struct channel_info *
 {
     char temp[512];
     int i = 0;
+    void *obj;
 
     if (channel_info == NULL || buf == NULL)
     {
@@ -274,7 +279,7 @@ static void add_channel_info_blobmsg(struct blob_buf *buf, struct channel_info *
 
     for (i = 0; i < channel_num; i++)
     {
-        void *const obj = blobmsg_open_table(buf, NULL);
+        obj = blobmsg_open_table(buf, NULL);
 
         sprintf(temp, "%d", channel_info[i].channel);
         blobmsg_add_string(buf, "channel", temp);
@@ -308,18 +313,16 @@ void add_bw20_best_channel_blobmsg(struct blob_buf *buf, struct device_list *lis
     void *const bw20_table = blobmsg_open_table(buf, "bw_20");
     int best_channel_ptr;
     struct channel_info bw20_channel[36];
-
     int j, i;
     double channel_avg_score[36];
     char temp[100];
     struct device_info *p;
+
     debug("");
     memset(channel_avg_score, 0, 36 * sizeof(double));
     debug("");
-    for (j = 0; j < g_input.channel_num; j++)
-    {
-        list_for_each_device(p, i, list)
-        {
+    for (j = 0; j < g_input.channel_num; j++) {
+        list_for_each_device(p, i, list) {
             channel_avg_score[j] += p->channel_info[j].score;
             debug("channel %d", p->channel_info[j].channel);
             debug("score  %f", p->channel_info[j].score);
@@ -331,14 +334,11 @@ void add_bw20_best_channel_blobmsg(struct blob_buf *buf, struct device_list *lis
     }
 
     best_channel_ptr = 0;
-    for (i = 0; i < g_input.channel_num; i++)
-    {
-        if (channel_avg_score[best_channel_ptr] < channel_avg_score[i])
-        {
+    for (i = 0; i < g_input.channel_num; i++) {
+        if (channel_avg_score[best_channel_ptr] < channel_avg_score[i]) {
             best_channel_ptr = i;
         }
     }
-
     debug("best_channel_ptr %d", best_channel_ptr);
 
     sprintf(temp, "%f", channel_avg_score[best_channel_ptr]);
@@ -356,7 +356,6 @@ void add_bw40_best_channel_blobmsg(struct blob_buf *buf, struct device_list *lis
     void *const bw40_table = blobmsg_open_table(buf, "bw_40");
     int best_channel_ptr;
     struct channel_info bw40_channel[18];
-
     int j, i;
     double channel_avg_score[36];
     char temp[100];
@@ -364,20 +363,16 @@ void add_bw40_best_channel_blobmsg(struct blob_buf *buf, struct device_list *lis
 
     memset(channel_avg_score, 0, MAX_BAND_5G_CHANNEL_NUM * sizeof(double));
 
-    for (j = 0; j < g_input.channel_num / 2; j++)
-    {
-        list_for_each_device(p, i, list)
-        {
+    for (j = 0; j < g_input.channel_num / 2; j++) {
+        list_for_each_device(p, i, list) {
             channel_avg_score[j] += p->bw40_channel[j].score;
         }
         channel_avg_score[j] /= (list->list_len);
     }
 
     best_channel_ptr = 0;
-    for (i = 0; i < g_input.channel_num / 2; i++)
-    {
-        if (channel_avg_score[best_channel_ptr] < channel_avg_score[i])
-        {
+    for (i = 0; i < g_input.channel_num / 2; i++) {
+        if (channel_avg_score[best_channel_ptr] < channel_avg_score[i]) {
             best_channel_ptr = i;
         }
     }
@@ -403,20 +398,16 @@ void add_bw80_best_channel_blobmsg(struct blob_buf *buf, struct device_list *lis
 
     memset(channel_avg_score, 0, 36 * sizeof(double));
 
-    for (j = 0; j < g_input.channel_num / 4; j++)
-    {
-        list_for_each_device(p, i, list)
-        {
+    for (j = 0; j < g_input.channel_num / 4; j++) {
+        list_for_each_device(p, i, list) {
             channel_avg_score[j] += p->bw80_channel[j].score;
         }
         channel_avg_score[j] /= (list->list_len);
     }
 
     best_channel_ptr = 0;
-    for (i = 0; i < g_input.channel_num / 4; i++)
-    {
-        if (channel_avg_score[best_channel_ptr] < channel_avg_score[i])
-        {
+    for (i = 0; i < g_input.channel_num / 4; i++) {
+        if (channel_avg_score[best_channel_ptr] < channel_avg_score[i]) {
             best_channel_ptr = i;
         }
     }
@@ -438,6 +429,8 @@ static void get_reply(struct uloop_timeout *t)
     char temp[512];
     int i;
     int code;
+    void *best_channel_obj;
+    void *scan_list_obj;
 
     blob_buf_init(&buf, 0);
 
@@ -463,14 +456,13 @@ static void get_reply(struct uloop_timeout *t)
         debug("scan not start");
     }
 
-
     blobmsg_add_string(&buf, "status", "idle");
     blobmsg_add_string(&buf, "status_code", "2");
 
     add_timestamp_blobmsg(&buf, &g_current_time);
     debug("g_finished_device_list.list_len %d", g_finished_device_list.list_len);
     /* scan list*/
-    void *const scan_list_obj = blobmsg_open_array(&buf, "scan_list");
+    scan_list_obj = blobmsg_open_array(&buf, "scan_list");
 
     for (i = 0; i < g_finished_device_list.list_len; i++) {
         debug("");
@@ -480,14 +472,15 @@ static void get_reply(struct uloop_timeout *t)
     blobmsg_close_array(&buf, scan_list_obj);
 
     /* best channel*/
-    void *const best_channel_obj = blobmsg_open_table(&buf, "best_channel");
+    best_channel_obj = blobmsg_open_table(&buf, "best_channel");
     debug("");
     add_bw20_best_channel_blobmsg(&buf, &g_finished_device_list);
     add_bw40_best_channel_blobmsg(&buf, &g_finished_device_list);
     add_bw80_best_channel_blobmsg(&buf, &g_finished_device_list);
 
     blobmsg_close_table(&buf, best_channel_obj);
-
+    // blobmsg_buf_write_json();
+    spctrm_scn_common_dump_packet(buf.buf,buf.buflen);
     ubus_send_reply(ctx, &req->req, buf.head);
     if (pipe(fds) == -1) {
         fprintf(stderr, "Failed to create pipe\n");
@@ -588,8 +581,7 @@ static int scan(struct ubus_context *ctx, struct ubus_object *obj,
     struct blob_attr *channel_bitmap_array[MAX_CHANNEL_NUM];
     static struct blobmsg_policy channel_bitmap_policy[MAX_CHANNEL_NUM];
     int i, total_band_num;
-
-    char msgstr[100] = "(unknown)";
+    char msgstr[100];
     long bitmap_2G, bitmap_5G;
 
     for (i = 0; i < MAX_CHANNEL_NUM; i++) {
@@ -602,11 +594,9 @@ static int scan(struct ubus_context *ctx, struct ubus_object *obj,
     blobmsg_parse(scan_policy, ARRAY_SIZE(scan_policy), tb, blob_data(msg), blob_len(msg));
 
     if (g_status == SCAN_BUSY) {
-
         len = sizeof(*hreq) + sizeof(msgstr) + 1;
         hreq = calloc(1, len);
-        if (!hreq)
-        {
+        if (!hreq) {
             return UBUS_STATUS_UNKNOWN_ERROR;
         }
         sprintf(hreq->data, "%d", FAIL);
@@ -614,12 +604,11 @@ static int scan(struct ubus_context *ctx, struct ubus_object *obj,
     }
 
     if (tb[BAND]) {
-        printf("g_status %d \r\n", g_status);
-        if (blobmsg_get_u32(tb[BAND]) != 5 && blobmsg_get_u32(tb[BAND]) != 2) {
+        debug("g_status %d \r\n", g_status);
+        if (blobmsg_get_u32(tb[BAND]) != PLATFORM_5G && blobmsg_get_u32(tb[BAND]) != PLATFORM_2G) {
             len = sizeof(*hreq) + sizeof(msgstr) + 1;
             hreq = calloc(1, len);
-            if (!hreq)
-            {
+            if (!hreq) {
                 return UBUS_STATUS_UNKNOWN_ERROR;
             }
             sprintf(hreq->data, "%d", FAIL);
@@ -631,43 +620,36 @@ static int scan(struct ubus_context *ctx, struct ubus_object *obj,
         total_band_num = spctrm_scn_wireless_country_channel(channel_info.bw, &bitmap_2G, &bitmap_5G, PLATFORM_5G);
         g_input.band = blobmsg_get_u32(tb[BAND]);
 
-        if (tb[SCAN_TIME])
-        {
+        if (tb[SCAN_TIME]) {
             g_input.scan_time = blobmsg_get_u32(tb[SCAN_TIME]);
         }
 
-        if (tb[CHANNEL_BITMAP] && blobmsg_check_array(tb[CHANNEL_BITMAP], BLOBMSG_TYPE_INT32))
-        {
+        if (tb[CHANNEL_BITMAP] && blobmsg_check_array(tb[CHANNEL_BITMAP], BLOBMSG_TYPE_INT32)) {
             g_input.channel_num = blobmsg_check_array(tb[CHANNEL_BITMAP], BLOBMSG_TYPE_INT32);
             g_input.channel_bitmap = 0;
             blobmsg_parse_array(channel_bitmap_policy, ARRAY_SIZE(channel_bitmap_policy), channel_bitmap_array, blobmsg_data(tb[CHANNEL_BITMAP]), blobmsg_len(tb[CHANNEL_BITMAP]));
-            printf("len %d\n", g_input.channel_num);
-            for (i = 0; i < g_input.channel_num; i++)
-            {
-                printf("%d\r\n", blobmsg_get_u32(channel_bitmap_array[i]));
-                if (channel_check(blobmsg_get_u32(channel_bitmap_array[i])) == FAIL)
-                {
+            debug("len %d\n", g_input.channel_num);
+            for (i = 0; i < g_input.channel_num; i++) {
+                debug("%d\r\n", blobmsg_get_u32(channel_bitmap_array[i]));
+                if (channel_check(blobmsg_get_u32(channel_bitmap_array[i])) == FAIL) {
                     len = sizeof(*hreq) + sizeof(msgstr) + 1;
                     hreq = calloc(1, len);
-                    if (!hreq)
-                    {
+                    if (!hreq) {
                         return UBUS_STATUS_UNKNOWN_ERROR;
                     }
-                    printf("line : %d fun : %s \r\n", __LINE__, __func__);
+                    debug("line : %d fun : %s \r\n", __LINE__, __func__);
                     sprintf(hreq->data, "%d", FAIL);
                     goto error;
                 }
-                printf("line : %d fun : %s \r\n", __LINE__, __func__);
+                debug("line : %d fun : %s \r\n", __LINE__, __func__);
                 g_input.channel_bitmap |= 1 << (blobmsg_get_u32(channel_bitmap_array[i]) / 4 - 9);
             }
-            printf("input bitmap %d\r\n", g_input.channel_bitmap);
-            printf("input  %d\r\n", g_input.channel_bitmap & bitmap_5G);
-            if ((g_input.channel_bitmap & bitmap_5G) != g_input.channel_bitmap)
-            {
+            debug("input bitmap %d\r\n", g_input.channel_bitmap);
+            debug("input  %d\r\n", g_input.channel_bitmap & bitmap_5G);
+            if ((g_input.channel_bitmap & bitmap_5G) != g_input.channel_bitmap) {
                 len = sizeof(*hreq) + sizeof(msgstr) + 1;
                 hreq = calloc(1, len);
-                if (!hreq)
-                {
+                if (!hreq) {
                     return UBUS_STATUS_UNKNOWN_ERROR;
                 }
                 sprintf(hreq->data, "%d", FAIL);
@@ -678,13 +660,16 @@ static int scan(struct ubus_context *ctx, struct ubus_object *obj,
             g_input.channel_bitmap = bitmap_5G;
             g_input.channel_num = total_band_num;
         }
-        printf("band : %d", g_input.band);
+        debug("band : %d", g_input.band);
         len = sizeof(*hreq) + sizeof(format) + 1;
         hreq = calloc(1, len);
         if (!hreq) {
             return UBUS_STATUS_UNKNOWN_ERROR;
         }
         sprintf(hreq->data, "%d", SUCCESS);
+
+        memset(&g_finished_device_list, 0, sizeof(g_finished_device_list)); /* xxx */
+        spctrm_scn_dev_wds_list(&g_finished_device_list);
 
         pthread_mutex_lock(&g_mutex);
         memset(&g_device_list, 0, sizeof(g_device_list)); 
@@ -721,8 +706,7 @@ static int realtime_get(struct ubus_context *ctx, struct ubus_object *obj,
 
     size_t len = sizeof(*hreq) + sizeof(format) + strlen(obj->name) + strlen(msgstr) + 1;
     hreq = calloc(1, len);
-    if (!hreq)
-    {
+    if (!hreq) {
         return UBUS_STATUS_UNKNOWN_ERROR;
     }
 
@@ -740,11 +724,10 @@ static int get(struct ubus_context *ctx, struct ubus_object *obj,
     struct get_request *hreq;
     char format[100];
     const char *msgstr = "(error)";
-
     size_t len = sizeof(*hreq) + sizeof(format) + strlen(obj->name) + strlen(msgstr) + 1;
+
     hreq = calloc(1, len);
-    if (!hreq)
-    {
+    if (!hreq) {
         return UBUS_STATUS_UNKNOWN_ERROR;
     }
 
@@ -760,12 +743,15 @@ static void server_main(void)
     int ret;
 
     ret = ubus_add_object(ctx, &channel_score_object);
-    if (ret)
+    if (ret) {
         fprintf(stderr, "Failed to add object: %s\n", ubus_strerror(ret));
+    }
+        
 
     ret = ubus_register_subscriber(ctx, &test_event);
-    if (ret)
+    if (ret) {
         fprintf(stderr, "Failed to add watch handler: %s\n", ubus_strerror(ret));
+    }
 
     uloop_run();
 }
@@ -777,8 +763,7 @@ void *spctrm_scn_ubus_thread(void *arg)
     signal(SIGPIPE, SIG_IGN);
 
     ctx = ubus_connect(ubus_socket);
-    if (!ctx)
-    {
+    if (!ctx) {
         fprintf(stderr, "Failed to connect to ubus\n");
         return -1;
     }

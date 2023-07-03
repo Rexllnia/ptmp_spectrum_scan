@@ -137,3 +137,52 @@ cleanup:
 
     return ret;
 }
+unsigned char *phrase_line(unsigned int num, unsigned char *src, unsigned int len)
+{
+#define HEAD_LEN (4 + 3 + 1) // "0000│ "
+#define HEX_LEN (16 * 3 + 1)
+#define SPACE_LEN (3 + 1) // "│ "
+    int i = 0;
+    static unsigned char dst[128];
+ 
+    memset(dst, 0x0, sizeof(dst));
+ 
+    if(0 == len)
+    {
+        return dst;
+    }
+    sprintf(dst, "%04X│ ", num);
+ 
+    for(i = 0; i < len; i++)
+    {
+        sprintf(dst + HEAD_LEN + i * 3 + (i >= 8 ? 1 : 0), "%02X ", src[i]);
+        dst[HEAD_LEN + HEX_LEN + SPACE_LEN + i + (i >= 8 ? 1 : 0)] = (src[i] >= 0x20 && src[i] <= 0x7E) ? src[i] : '.';
+    }
+ 
+    dst[HEAD_LEN + 8 * 3] = ' ';
+    memcpy(dst + HEAD_LEN + HEX_LEN, "│ ", SPACE_LEN);
+    for(i = HEAD_LEN + len * 3 + (len > 8 ? 1 : 0); i < HEAD_LEN + HEX_LEN; i++)
+    {
+        dst[i] = ' ';
+    }
+    dst[HEAD_LEN + HEX_LEN + SPACE_LEN + 8] = ' ';
+    return dst;
+}
+ 
+void spctrm_scn_common_dump_packet(unsigned char *src, unsigned int len)
+{
+    int i = 0, tmpLen = 0;
+ 
+    while(i < len)
+    {
+        tmpLen = 16;
+        if(i + 16 > len)
+        {
+            tmpLen = len - i;
+        }
+        printf("%s\n", phrase_line(i, src + i, tmpLen));
+        i += tmpLen;
+    }
+ 
+    return ;
+}

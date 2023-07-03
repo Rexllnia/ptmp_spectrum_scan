@@ -24,9 +24,6 @@ enum {
 	__SCAN_MAX
 };
 
-
-
-
 void *spctrm_scn_ubus_thread(void *arg);
 
 static int scan(struct ubus_context *ctx, struct ubus_object *obj,
