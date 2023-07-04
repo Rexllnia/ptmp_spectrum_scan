@@ -18,10 +18,8 @@
 #include <stdio.h>
 #include <math.h>
 
-
-
 extern struct channel_info g_channel_info_5g[MAX_BAND_5G_CHANNEL_NUM];
-extern struct channel_info realtime_channel_info_5g[36];
+extern struct channel_info realtime_channel_info_5g[MAX_BAND_5G_CHANNEL_NUM];
 extern time_t g_current_time;
 extern sem_t g_semaphore;
 extern int g_status;
@@ -80,13 +78,9 @@ static struct ubus_object channel_score_object = {
     .n_methods = ARRAY_SIZE(channel_score_methods),
 };
 
-extern int spctrm_scn_wireless_channel_info(struct channel_info *info, int band);
-extern double spctrm_scn_wireless_channel_score(struct channel_info *info);
-
 static void scan_reply(struct uloop_timeout *t)
 {
     struct scan_request *req = container_of(t, struct scan_request, timeout);
-    int fds[2];
     char temp[100];
 
     struct channel_info current_channel_info;
@@ -113,39 +107,23 @@ static void scan_reply(struct uloop_timeout *t)
 
     ubus_send_reply(ctx, &req->req, b.head);
 
-    if (pipe(fds) == -1)
-    {
-        fprintf(stderr, "Failed to create pipe\n");
-        free(req); /*xxx*/
-        return;
-    }
-
-    ubus_request_set_fd(ctx, &req->req, fds[0]);
     ubus_complete_deferred_request(ctx, &req->req, 0);
-    req->fd = fds[1];
     free(req);
 }
 
 static void realtime_get_reply(struct uloop_timeout *t)
 {
     struct realtime_get_request *req = container_of(t, struct realtime_get_request, timeout);
-    int fds[2];
     static struct blob_buf buf;
-
     char temp[512];
     int i;
     void *scan_list_obj;
     
     blob_buf_init(&buf, 0);
-    debug("%s\r\n", __func__);
-
-    
-
     
     spctrm_scn_dev_reset_stat(&g_device_list);
     /* find AP */
     i = spctrm_scn_dev_find_ap(&g_device_list);
-    debug("%s i = %d", __func__, i);
 
     memcpy(g_device_list.device[i].channel_info, realtime_channel_info_5g, sizeof(realtime_channel_info_5g));
     g_device_list.device[i].timestamp = time(NULL);
@@ -169,27 +147,20 @@ static void realtime_get_reply(struct uloop_timeout *t)
 
     ubus_send_reply(ctx, &req->req, buf.head);
 timeout:
-    if (pipe(fds) == -1)
-    {
-        fprintf(stderr, "Failed to create pipe\n");
-        free(req); /*xxx*/
-        return;
-    }
-
-    ubus_request_set_fd(ctx, &req->req, fds[0]);
     ubus_complete_deferred_request(ctx, &req->req, 0);
-    req->fd = fds[1];
-
     free(req);
 }
 static void add_channel_score_blobmsg(struct blob_buf *buf, struct channel_info *channel_info)
 {
-    char *temp[64];
+    char temp[64];
     void *const channel_score_table = blobmsg_open_table(buf, NULL);
+
     sprintf(temp, "%d", channel_info->channel);
     blobmsg_add_string(buf, "channel", temp);
     sprintf(temp, "%f", channel_info->score);
     blobmsg_add_string(buf, "score", temp);
+    sprintf(temp, "%f", channel_info->rate);
+    blobmsg_add_string(buf, "rate", temp);
     blobmsg_close_table(buf, channel_score_table);
 }
 static void add_score_list_blobmsg(struct blob_buf *buf, int channel_num, struct channel_info *channel_info_list)
@@ -204,6 +175,7 @@ static void add_score_list_blobmsg(struct blob_buf *buf, int channel_num, struct
 
     blobmsg_close_array(buf, score_list);
 }
+
 static void add_bw80_blobmsg(struct blob_buf *buf, struct device_info *device)
 {
     void *const bw80_table = blobmsg_open_table(buf, "bw_80");
@@ -243,8 +215,7 @@ static void add_device_info_blobmsg(struct blob_buf *buf, struct device_info *de
 #endif
     blobmsg_close_table(buf, bw20_table);
 
-    if (is_real_time == false)
-    {
+    if (is_real_time == false) {
         add_bw40_blobmsg(buf, device);
         debug("add bw40");
         add_bw80_blobmsg(buf, device);
@@ -258,6 +229,7 @@ static void add_timestamp_blobmsg(struct blob_buf *buf, time_t *timestamp)
 {
     char temp[256];
     struct tm *local_time; // 将时间戳转换为本地时间
+
     local_time = localtime(timestamp);
     sprintf(temp, "当前时间：%d年%d月%d日 %d:%d:%d",
             local_time->tm_year + 1900, local_time->tm_mon + 1, local_time->tm_mday,
@@ -272,13 +244,11 @@ static void add_channel_info_blobmsg(struct blob_buf *buf, struct channel_info *
     int i = 0;
     void *obj;
 
-    if (channel_info == NULL || buf == NULL)
-    {
+    if (channel_info == NULL || buf == NULL) {
         return;
     }
 
-    for (i = 0; i < channel_num; i++)
-    {
+    for (i = 0; i < channel_num; i++) {
         obj = blobmsg_open_table(buf, NULL);
 
         sprintf(temp, "%d", channel_info[i].channel);
@@ -308,18 +278,18 @@ static void add_channel_info_blobmsg(struct blob_buf *buf, struct channel_info *
         blobmsg_close_table(buf, obj);
     }
 }
-void add_bw20_best_channel_blobmsg(struct blob_buf *buf, struct device_list *list)
+static void add_bw20_best_channel_blobmsg(struct blob_buf *buf, struct device_list *list)
 {
     void *const bw20_table = blobmsg_open_table(buf, "bw_20");
     int best_channel_ptr;
-    struct channel_info bw20_channel[36];
+    struct channel_info bw20_channel[MAX_BAND_5G_CHANNEL_NUM];
     int j, i;
-    double channel_avg_score[36];
+    double channel_avg_score[MAX_BAND_5G_CHANNEL_NUM];
     char temp[100];
     struct device_info *p;
 
     debug("");
-    memset(channel_avg_score, 0, 36 * sizeof(double));
+    memset(channel_avg_score, 0, MAX_BAND_5G_CHANNEL_NUM * sizeof(double));
     debug("");
     for (j = 0; j < g_input.channel_num; j++) {
         list_for_each_device(p, i, list) {
@@ -351,14 +321,14 @@ void add_bw20_best_channel_blobmsg(struct blob_buf *buf, struct device_list *lis
 
     blobmsg_close_table(buf, bw20_table);
 }
-void add_bw40_best_channel_blobmsg(struct blob_buf *buf, struct device_list *list)
+static void add_bw40_best_channel_blobmsg(struct blob_buf *buf, struct device_list *list)
 {
     void *const bw40_table = blobmsg_open_table(buf, "bw_40");
     int best_channel_ptr;
-    struct channel_info bw40_channel[18];
+    struct channel_info bw40_channel[18]; /* MAX_BAND_5G_CHANNEL_NUM / 2 */
     int j, i;
-    double channel_avg_score[36];
-    char temp[100];
+    double channel_avg_score[MAX_BAND_5G_CHANNEL_NUM];
+    char temp[100]; 
     struct device_info *p;
 
     memset(channel_avg_score, 0, MAX_BAND_5G_CHANNEL_NUM * sizeof(double));
@@ -385,18 +355,17 @@ void add_bw40_best_channel_blobmsg(struct blob_buf *buf, struct device_list *lis
 
     blobmsg_close_table(buf, bw40_table);
 }
-void add_bw80_best_channel_blobmsg(struct blob_buf *buf, struct device_list *list)
+static void add_bw80_best_channel_blobmsg(struct blob_buf *buf, struct device_list *list)
 {
     void *const bw80_table = blobmsg_open_table(buf, "bw_80");
     int best_channel_ptr;
-    struct channel_info bw80_channel[9];
-
+    struct channel_info bw80_channel[9]; /* MAX_BAND_5G_CHANNEL_NUM / 4 */
     int j, i;
-    double channel_avg_score[36];
+    double channel_avg_score[MAX_BAND_5G_CHANNEL_NUM];
     char temp[100];
     struct device_info *p;
 
-    memset(channel_avg_score, 0, 36 * sizeof(double));
+    memset(channel_avg_score, 0, MAX_BAND_5G_CHANNEL_NUM * sizeof(double));
 
     for (j = 0; j < g_input.channel_num / 4; j++) {
         list_for_each_device(p, i, list) {
@@ -423,7 +392,6 @@ void add_bw80_best_channel_blobmsg(struct blob_buf *buf, struct device_list *lis
 static void get_reply(struct uloop_timeout *t)
 {
     struct get_request *req = container_of(t, struct get_request, timeout);
-    int fds[2];
     static struct blob_buf buf;
     struct device_info *p;
     char temp[512];
@@ -442,23 +410,21 @@ static void get_reply(struct uloop_timeout *t)
     g_finished_device_list.device[i].input = g_input;
     g_finished_device_list.device[i].status = g_status;
 
-    if (g_status == SCAN_TIMEOUT)
-    {
+    if (g_status == SCAN_TIMEOUT) {
         goto scan_timeout;
     }
-    if (g_status == SCAN_BUSY)
-    {
+    if (g_status == SCAN_BUSY) {
         goto scan_busy;
     }
-    if (g_status == SCAN_NOT_START)
-    {
+    if (g_status == SCAN_NOT_START) {
         goto scan_not_start;
         debug("scan not start");
     }
 
     blobmsg_add_string(&buf, "status", "idle");
     blobmsg_add_string(&buf, "status_code", "2");
-
+    sprintf(temp,"%d",g_input.channel_num);
+    blobmsg_add_string(&buf, "total_channel",temp);
     add_timestamp_blobmsg(&buf, &g_current_time);
     debug("g_finished_device_list.list_len %d", g_finished_device_list.list_len);
     /* scan list*/
@@ -482,15 +448,8 @@ static void get_reply(struct uloop_timeout *t)
     // blobmsg_buf_write_json();
     spctrm_scn_common_dump_packet(buf.buf,buf.buflen);
     ubus_send_reply(ctx, &req->req, buf.head);
-    if (pipe(fds) == -1) {
-        fprintf(stderr, "Failed to create pipe\n");
-        free(req); /*xxx*/
-        return;
-    }
 
-    ubus_request_set_fd(ctx, &req->req, fds[0]);
     ubus_complete_deferred_request(ctx, &req->req, 0);
-    req->fd = fds[1];
 
     free(req);
     return;
@@ -500,15 +459,8 @@ scan_not_start:
     blobmsg_add_string(&buf, "status", "not start");
     blobmsg_add_string(&buf, "status_code", "0");
     ubus_send_reply(ctx, &req->req, buf.head);
-    if (pipe(fds) == -1) {
-        fprintf(stderr, "Failed to create pipe\n");
-        free(req); /*xxx*/
-        return;
-    }
 
-    ubus_request_set_fd(ctx, &req->req, fds[0]);
     ubus_complete_deferred_request(ctx, &req->req, 0);
-    req->fd = fds[1];
 
     free(req);
     return;
@@ -517,15 +469,10 @@ scan_timeout:
     blobmsg_add_string(&buf, "status", "timeout");
     blobmsg_add_string(&buf, "status_code", "3");
     ubus_send_reply(ctx, &req->req, buf.head);
-    if (pipe(fds) == -1) {
-        fprintf(stderr, "Failed to create pipe\n");
-        free(req); /*xxx*/
-        return;
-    }
 
-    ubus_request_set_fd(ctx, &req->req, fds[0]);
+
+
     ubus_complete_deferred_request(ctx, &req->req, 0);
-    req->fd = fds[1];
 
     free(req);
     return;
@@ -534,40 +481,13 @@ scan_busy:
     blobmsg_add_string(&buf, "status", "busy");
     blobmsg_add_string(&buf, "status_code", "1");
     ubus_send_reply(ctx, &req->req, buf.head);
-    if (pipe(fds) == -1) {
-        fprintf(stderr, "Failed to create pipe\n");
-        free(req); /*xxx*/
-        return;
-    }
 
-    ubus_request_set_fd(ctx, &req->req, fds[0]);
     ubus_complete_deferred_request(ctx, &req->req, 0);
-    req->fd = fds[1];
 
     free(req);
 }
 
-static inline int channel_check(int channel)
-{
 
-    if (channel < 36 || channel > 181) {
-        return FAIL;
-    }
-
-    if (channel >= MAX_BAND_5G_CHANNEL_NUM && channel <= 144) {
-        if (channel % 4 != 0) {
-            return FAIL;
-        }
-    }
-
-    if (channel >= 149 && channel <= 181) {
-        if ((channel - 1) % 4 != 0) {
-            return FAIL;
-        }
-    }
-
-    return SUCCESS;
-}
 
 static int scan(struct ubus_context *ctx, struct ubus_object *obj,
                 struct ubus_request_data *req, const char *method,
@@ -582,7 +502,7 @@ static int scan(struct ubus_context *ctx, struct ubus_object *obj,
     static struct blobmsg_policy channel_bitmap_policy[MAX_CHANNEL_NUM];
     int i, total_band_num;
     char msgstr[100];
-    long bitmap_2G, bitmap_5G;
+    uint64_t bitmap_2G, bitmap_5G;
 
     for (i = 0; i < MAX_CHANNEL_NUM; i++) {
         channel_bitmap_policy[i].type = BLOBMSG_TYPE_INT32;
@@ -631,7 +551,7 @@ static int scan(struct ubus_context *ctx, struct ubus_object *obj,
             debug("len %d\n", g_input.channel_num);
             for (i = 0; i < g_input.channel_num; i++) {
                 debug("%d\r\n", blobmsg_get_u32(channel_bitmap_array[i]));
-                if (channel_check(blobmsg_get_u32(channel_bitmap_array[i])) == FAIL) {
+                if (spctrm_scn_wireless_channel_check(blobmsg_get_u32(channel_bitmap_array[i])) == FAIL) {
                     len = sizeof(*hreq) + sizeof(msgstr) + 1;
                     hreq = calloc(1, len);
                     if (!hreq) {
@@ -668,7 +588,7 @@ static int scan(struct ubus_context *ctx, struct ubus_object *obj,
         }
         sprintf(hreq->data, "%d", SUCCESS);
 
-        memset(&g_finished_device_list, 0, sizeof(g_finished_device_list)); /* xxx */
+        memset(&g_finished_device_list, 0, sizeof(g_finished_device_list)); 
         spctrm_scn_dev_wds_list(&g_finished_device_list);
 
         pthread_mutex_lock(&g_mutex);
@@ -712,7 +632,7 @@ static int realtime_get(struct ubus_context *ctx, struct ubus_object *obj,
 
     ubus_defer_request(ctx, req, &hreq->req);
     hreq->timeout.cb = realtime_get_reply;
-    uloop_timeout_set(&hreq->timeout, 1000);
+    uloop_timeout_set(&hreq->timeout, 1000);/* 1s后执行回调 */
 
     return 0;
 }
@@ -733,7 +653,7 @@ static int get(struct ubus_context *ctx, struct ubus_object *obj,
 
     ubus_defer_request(ctx, req, &hreq->req);
     hreq->timeout.cb = get_reply;
-    uloop_timeout_set(&hreq->timeout, 1000);
+    uloop_timeout_set(&hreq->timeout, 1000); /* 1s后执行回调 */
 
     return 0;
 }

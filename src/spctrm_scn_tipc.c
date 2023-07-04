@@ -333,7 +333,7 @@ void *spctrm_scn_tipc_thread(void * argv)
 					pthread_mutex_lock(&g_mutex);
 					memset(realtime_channel_info_5g,0,sizeof(realtime_channel_info_5g));
 					memcpy(&g_input,(pkt+sizeof(tipc_recv_packet_head_t)),sizeof(g_input));
-					debug("%ld",g_input.channel_bitmap);
+					debug("%llu",g_input.channel_bitmap);
 					g_status = SCAN_BUSY;
 					pthread_mutex_unlock(&g_mutex);
 					sem_post(&g_semaphore);

@@ -4,6 +4,10 @@
 char spctrm_scn_common_read_file(char *name,char *buf,char len) {
     int fd;
 
+    if (name == NULL || buf == NULL ) {
+        return FAIL;
+    }
+
     memset(buf,0,len);
     fd = open(name, O_RDONLY);
     if (fd > 0) {
@@ -21,6 +25,10 @@ int spctrm_scn_common_mac_2_nodeadd(unsigned char *mac_src)
     unsigned int mac[6];
     unsigned int tmp;
     char buf[30];
+
+    if (mac_src == NULL) {
+        return;
+    }
 
     memset(mac,0,sizeof(mac));
     if (sscanf(mac_src, "%2x:%2x:%2x:%2x:%2x:%2x",&mac[0],&mac[1],&mac[2],&mac[3],&mac[4],&mac[5]) != 6) {
@@ -70,6 +78,10 @@ void spctrm_scn_common_get_sn(char *sn)
 {
     int ret;
     char res[SN_LEN];
+
+    if (sn == NULL) {
+        return ;
+    }
 
     memset(res, 0, SN_LEN);
     ret = spctrm_scn_common_uci_anonymous_get("sysinfo", "sysinfo", "sysinfo", "serial_num", res, sizeof(res));
@@ -139,12 +151,13 @@ cleanup:
 }
 unsigned char *phrase_line(unsigned int num, unsigned char *src, unsigned int len)
 {
-#define HEAD_LEN (4 + 3 + 1) // "0000│ "
-#define HEX_LEN (16 * 3 + 1)
-#define SPACE_LEN (3 + 1) // "│ "
     int i = 0;
     static unsigned char dst[128];
  
+    if (src == NULL) {
+        return;
+    }
+
     memset(dst, 0x0, sizeof(dst));
  
     if(0 == len) {
@@ -169,7 +182,11 @@ unsigned char *phrase_line(unsigned int num, unsigned char *src, unsigned int le
 void spctrm_scn_common_dump_packet(unsigned char *src, unsigned int len)
 {
     int i = 0, tmpLen = 0;
- 
+    
+    if (src == NULL) {
+        return;
+    } 
+
     while(i < len) {
         tmpLen = 16;
         if(i + 16 > len) {
@@ -179,5 +196,5 @@ void spctrm_scn_common_dump_packet(unsigned char *src, unsigned int len)
         i += tmpLen;
     }
  
-    return ;
+    return;
 }

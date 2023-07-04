@@ -6,9 +6,14 @@ extern struct user_input g_input;
 
 int spctrm_scn_dev_list_cmp(struct device_list *src_list,struct device_list *dest_list) {
 
+
     int i,count;
     struct device_info *p;
     count = 0;
+	
+	if (src_list == NULL || dest_list == NULL) {
+		return FAIL;
+	}
 
     list_for_each_device(p, i, src_list) {
         if (spctrm_scn_dev_find_by_sn(dest_list, p->series_no) == FAIL) {
@@ -28,8 +33,6 @@ int spctrm_scn_dev_modify(struct device_list *device_list,struct device_info *de
     } 
 
     pos = spctrm_scn_dev_find_by_sn(device_list,device->series_no);
-
-    
     memcpy(&device_list[pos],device,sizeof(struct device_info));
      
 }

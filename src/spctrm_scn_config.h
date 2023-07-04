@@ -49,8 +49,8 @@ unsigned char g_mode;
 } while(0)
 
 struct user_input {
+    uint64_t channel_bitmap;
     int band;
-    long channel_bitmap;
     int channel_num;
     int scan_time;
 };
@@ -64,6 +64,7 @@ struct channel_info {
     int tx_util;
     int rx_util;
     double score;
+    double rate;
 };
 
 
