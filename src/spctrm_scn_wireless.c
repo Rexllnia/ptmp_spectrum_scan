@@ -333,10 +333,6 @@ void *spctrm_scn_wireless_cpe_scan_thread()
                     debug("------------------\r\n");
                     j++;  
                 }
-                
-                if (g_status == SCAN_TIMEOUT) {
-                    goto timeout;
-                }
             }
             
             spctrm_scn_wireless_change_channel(current_channel_info.channel);
@@ -346,15 +342,6 @@ void *spctrm_scn_wireless_cpe_scan_thread()
             memset(realtime_channel_info_5g,0,sizeof(realtime_channel_info_5g));
             g_status = SCAN_IDLE;
             g_input.scan_time = MIN_SCAN_TIME; /* restore scan time */
-            pthread_mutex_unlock(&g_mutex);
-        }
-timeout:
-    if (g_status == SCAN_TIMEOUT) {
-            spctrm_scn_wireless_change_channel(current_channel_info.channel);
-            pthread_mutex_lock(&g_mutex);
-            g_status = SCAN_IDLE;
-            g_input.scan_time = MIN_SCAN_TIME; /* restore scan time */
-            memset(realtime_channel_info_5g,0,sizeof(realtime_channel_info_5g));
             pthread_mutex_unlock(&g_mutex);
         }
     }

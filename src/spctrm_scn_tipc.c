@@ -18,8 +18,6 @@ extern struct channel_info realtime_channel_info_5g[MAX_BAND_5G_CHANNEL_NUM];
 extern pthread_mutex_t g_mutex,g_finished_device_list_mutex;
 extern sem_t g_semaphore;
 
-static sem_t receive_finish_semaphore;
-
 static int wait_for_server(__u32 name_type, __u32 name_instance, int wait)
 {
     struct sockaddr_tipc topsrv;
@@ -245,8 +243,6 @@ void *spctrm_scn_tipc_thread()
 
     debug("****** TIPC server program started ******\n\n");
 
-    sem_init(&receive_finish_semaphore,0,0);
-
     memset(mac,0,sizeof(mac));
     spctrm_scn_common_read_file("/proc/rg_sys/sys_mac",mac,sizeof(mac) - 1);
 
@@ -313,24 +309,15 @@ void *spctrm_scn_tipc_thread()
             }
         } else if (head.type == SERVER_TYPE_SCAN) {
             debug("SERVER_TYPE_SCAN");
-            while (1) {
-                debug("g_status %d",g_status);
-                if (g_status == SCAN_IDLE || g_status == SCAN_NOT_START) {
-                    pthread_mutex_lock(&g_mutex);
-                    memset(realtime_channel_info_5g,0,sizeof(realtime_channel_info_5g));
-                    memcpy(&g_input,(pkt+sizeof(tipc_recv_packet_head_t)),sizeof(g_input));
-                    debug("%llu",g_input.channel_bitmap);
-                    g_status = SCAN_BUSY;
-                    pthread_mutex_unlock(&g_mutex);
-                    sem_post(&g_semaphore);
-                    break;	
-                } else if (g_status == SCAN_BUSY) {
-                    pthread_mutex_lock(&g_mutex);
-                    g_status = SCAN_TIMEOUT;
-                    pthread_mutex_unlock(&g_mutex);
-                }
-            } 
-            sem_post(&receive_finish_semaphore);
+            if (g_status == SCAN_IDLE || g_status == SCAN_NOT_START) {
+                pthread_mutex_lock(&g_mutex);
+                memset(realtime_channel_info_5g,0,sizeof(realtime_channel_info_5g));
+                memcpy(&g_input,(pkt+sizeof(tipc_recv_packet_head_t)),sizeof(g_input));
+                debug("%llu",g_input.channel_bitmap);
+                g_status = SCAN_BUSY;
+                pthread_mutex_unlock(&g_mutex);
+                sem_post(&g_semaphore);
+            }
         }
     debug("free");
     free(pkt);
