@@ -40,13 +40,13 @@ extern unsigned char g_mode;
 extern struct device_list g_finished_device_list;
 extern struct device_list g_device_list;
 struct channel_info g_channel_info_5g[MAX_BAND_5G_CHANNEL_NUM];
-struct channel_info realtime_channel_info_5g[36];
+struct channel_info realtime_channel_info_5g[MAX_BAND_5G_CHANNEL_NUM];
 extern struct user_input g_input;
 volatile int g_status,g_scan_time;
 volatile long g_scan_timestamp;
 extern long g_bitmap_2G,g_bitmap_5G;
 
-pthread_mutex_t g_mutex;
+pthread_mutex_t g_mutex,g_scan_schedule_mutex,g_finished_device_list_mutex;
 pthread_t pid1, pid2 ,pid3;
 sem_t g_semaphore;
 
@@ -63,12 +63,12 @@ int main(int argc, char **argv)
 	g_input.channel_bitmap = 0;
     spctrm_scn_wireless_wds_state ();
     pthread_mutex_init(&g_mutex, NULL);
+    pthread_mutex_init(&g_scan_schedule_mutex,NULL);
+    pthread_mutex_init(&g_finished_device_list_mutex,NULL);
+    
+    spctrm_scn_rlog_module_set("spectrum_scan");
+    spctrm_scn_rlog_module_enable("spectrum_scan");
 
-    // spctrm_scn_rlog_module_set();
-    ret = spctrm_scn_rlog_module_enable();
-    debug("result %d \r\n",ret);
-    
-    
     spctrm_scn_common_cmd("mkdir /tmp/spectrum_scan",NULL);
     fp = fopen("/tmp/spectrum_scan/curl_pid","w+");
     if (fp == NULL) {

@@ -21,16 +21,16 @@
 #define NOT_FINISH	0
 
 struct device_info {
-	char series_no[SN_LEN];
-	unsigned char mac[20];
-	char role[ROLE_STRING_LEN];
-	int status;
-	struct user_input input;
-	struct channel_info channel_info[36];
-	struct channel_info bw40_channel[18];
-	struct channel_info bw80_channel[9];
-	unsigned char finished_flag;
-	time_t timestamp;
+    char series_no[SN_LEN];
+    unsigned char mac[20];
+    char role[ROLE_STRING_LEN];
+    int status;
+    struct user_input input;
+    struct channel_info channel_info[36];
+    struct channel_info bw40_channel[18];
+    struct channel_info bw80_channel[9];
+    unsigned char finished_flag;
+    time_t timestamp;
 };
 struct device_list {
     int list_len;
@@ -46,11 +46,9 @@ dev_list : type device_list
     for ((p) = (dev_list)->device,i = 0;i < (dev_list)->list_len;p++,i++)
 
 int spctrm_scn_dev_chk_stat(struct device_list *device_list);
-int spctrm_scn_dev_modify(struct device_list *device_list,struct device_info *device);
 int spctrm_scn_dev_find_by_sn(struct device_list *device_list,char *series_no);
-int spctrm_scn_dev_find_ap(struct device_list *device_list);
-void spctrm_scn_dev_wds_list(struct device_list *device_list);
+int spctrm_scn_dev_wds_list(struct device_list *device_list);
 void spctrm_scn_dev_reset_stat(struct device_list *list);
 int spctrm_scn_dev_list_cmp(struct device_list *src_list,struct device_list *dest_list);
-
+struct device_info *spctrm_scn_dev_find_ap2(struct device_list *device_list);
 #endif

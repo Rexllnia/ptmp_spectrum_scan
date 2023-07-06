@@ -1,18 +1,22 @@
 #include "spctrm_scn_wireless.h"
 
-
+static int timeout_func();
+static double calculate_N(struct channel_info *info);
+static inline channel_to_bitmap (int channel);
+static inline bitmap_to_channel (int bit_set);
 
 extern unsigned char g_mode;
 extern struct device_list g_finished_device_list;
 extern struct device_list g_device_list;
 extern struct channel_info g_channel_info_5g[MAX_BAND_5G_CHANNEL_NUM];
-extern struct channel_info realtime_channel_info_5g[36];
-
+extern struct channel_info realtime_channel_info_5g[MAX_BAND_5G_CHANNEL_NUM];
+int g_scan_schedule;
 extern struct user_input g_input;
 volatile int g_status,g_scan_time;
 extern volatile uint64_t g_scan_timestamp;
 extern uint64_t g_bitmap_2G,g_bitmap_5G;
-extern pthread_mutex_t g_mutex;
+extern pthread_mutex_t g_mutex,g_finished_device_list_mutex;
+extern pthread_mutex_t g_scan_schedule_mutex;
 extern sem_t g_semaphore;
 time_t g_current_time;
 
@@ -27,130 +31,7 @@ static void print_bits(uint64_t num) {
 }
 
 #ifdef AP_PLATFORM
-int spctrm_scn_wireless_country_channel(int bw,uint64_t *bitmap_2G,uint64_t *bitmap_5G,int band)
-{
 
-#ifdef UNIFY_FRAMEWORK_ENABLE
-    uf_cmd_msg_t *msg_obj;
-#elif defined POPEN_CMD_ENABLE
-    char cmd[MAX_POPEN_BUFFER_SIZE];
-#endif     
-    int ret;
-    char*rbuf,*param_input;    
-    char bw_str[20];
-
-    
-    struct json_object *list = json_object_new_array();
-    json_object *input_param_root,*output_param_root;
-    json_object *qry_type_obj,*band_obj;
-	int i,p;
-
-	json_object *channel_2G_obj,*channel_5G_obj;
-	json_object *frequency_obj,*channel_obj,*NopOccupancy_obj;
-	char channel[8],frequency[8];
-
-    if (bitmap_2G == NULL && bitmap_5G == NULL) {
-        return FAIL;
-    }
-    if (bitmap_2G != NULL) {
-        *bitmap_2G = 0;
-    } 
-    if (bitmap_5G != NULL) {
-        *bitmap_5G = 0;
-    }
-
-    rbuf = NULL;
-
-    
-    
-
-	input_param_root = json_object_new_object();
-
-    if (bw == 20) {
-		json_object_object_add(input_param_root, "band", json_object_new_string("BW_20"));
-    } else if (bw == 40) {
-		json_object_object_add(input_param_root, "band", json_object_new_string("BW_40"));
-    } else if (bw == 80) {
-		json_object_object_add(input_param_root, "band", json_object_new_string("BW_80"));
-    } else if (bw == 160) {
-		json_object_object_add(input_param_root, "band", json_object_new_string("BW_160"));
-    } else {
-        return FAIL;
-    }
-    
-    
-    json_object_object_add(input_param_root, "qry_type", json_object_new_string("channellist"));
-    
-    param_input = json_object_to_json_string(input_param_root);
-	debug("%s\n",param_input);
-
-#ifdef UNIFY_FRAMEWORK_ENABLE
-    msg_obj = (uf_cmd_msg_t*)malloc(sizeof(uf_cmd_msg_t));
-    if (msg_obj == NULL) {
-        return FAIL;
-    }
-    memset(msg_obj, 0, sizeof(uf_cmd_msg_t));
-
-    msg_obj->param = param_input;
-    msg_obj->ctype = UF_DEV_STA_CALL;    /* 调用类型 ac/dev/.. */
-    msg_obj->cmd = "get";
-    msg_obj->module = "country_channel";               /* 必填参数，其它可选参数根据需要使用 */
-    msg_obj->caller = "group_change";       /* 自定义字符串，标记调用者 */
-    ret = uf_client_call(msg_obj, &rbuf, NULL);
-    debug("%s\n",rbuf);
-
-#elif defined POPEN_CMD_ENABLE
-	debug("%s\n",param_input);
-    sprintf(cmd,"dev_sta get -m country_channel '%s'",param_input);
-    debug("%s\r\n",cmd);
-    spctrm_scn_common_cmd(cmd,&rbuf);    
-#endif
-
-	output_param_root=json_tokener_parse(rbuf);
-	
-    
-
-    if (band == PLATFORM_5G || band == PLATFORM_BOTH) {
-        channel_5G_obj = json_object_object_get(output_param_root, "channel_5G");
-
-        for (i = 0; i < json_object_array_length(channel_5G_obj); i++) {
-        struct json_object *elem = json_object_array_get_idx(channel_5G_obj, i);
-        frequency_obj = json_object_object_get(elem, "frequency");
-		channel_obj = json_object_object_get(elem, "channel");
-        strcpy(channel,json_object_get_string(channel_obj));
-        *bitmap_5G |= 1 << channel_to_bitmap(atoi(channel));  /*36 ~ 144    149 153 157 161 165 169 173 177 181*/
-        }
-    }
-    if (band == PLATFORM_2G || band == PLATFORM_BOTH) {
-        channel_2G_obj = json_object_object_get(output_param_root, "channel_2G");
-
-        for (i = 0; i < json_object_array_length(channel_2G_obj); i++) {
-            struct json_object *elem = json_object_array_get_idx(channel_2G_obj, i);
-            frequency_obj = json_object_object_get(elem, "frequency");
-            channel_obj = json_object_object_get(elem, "channel");
-            strcpy(channel,json_object_get_string(channel_obj));
-            debug("%s\r\n",channel);
-            *bitmap_2G |= 1<<atoi(channel);
-        }
-    } 
-
-
-    debug("bitmap_5G %d\n",*bitmap_5G);
-    debug("bitmap_2G %d\n",*bitmap_2G);
-    print_bits(*bitmap_5G);
-
-	json_object_put(input_param_root);
-    /* 资源需要调用者释放 */
-    if (rbuf) {
-      free(rbuf);
-    }
-
-#ifdef UNIFY_FRAMEWORK_ENABLE
-    free(msg_obj);
-#endif
-
-	return SUCCESS;
-}
 #elif defined BRIDGE_PLATFORM
 int spctrm_scn_wireless_country_channel(int bw,uint64_t *bitmap_2G,uint64_t *bitmap_5G,int band)
 {
@@ -162,25 +43,25 @@ int spctrm_scn_wireless_country_channel(int bw,uint64_t *bitmap_2G,uint64_t *bit
 #endif     
     int ret;
     int channel_num;
-    char*rbuf,*param_input;    
-    char bw_str[20];
-
-    
-    struct json_object *list = json_object_new_array();
+    char *rbuf,*param_input;
     json_object *input_param_root,*output_param_root;
     json_object *qry_type_obj,*band_obj;
 	int i,p;
-
+    struct json_object *elem;
 	json_object *frequency_obj,*channel_obj;
-	char channel[8],frequency[8];
+	char channel[8],frequency[8]; /* 信道字符串 */
 
-
-
-	input_param_root = json_object_new_object();
 
     if (band != PLATFORM_5G && band != PLATFORM_2G) {
+        debug("");
         return FAIL;
     } 
+
+	input_param_root = json_object_new_object();
+    if (input_param_root == NULL) {
+        debug("");
+        return FAIL;
+    }
 
     if (bw == BW_20) {
 		json_object_object_add(input_param_root, "band", json_object_new_string("BW_20"));
@@ -191,31 +72,38 @@ int spctrm_scn_wireless_country_channel(int bw,uint64_t *bitmap_2G,uint64_t *bit
     } else if (bw == BW_160) {
 		json_object_object_add(input_param_root, "band", json_object_new_string("BW_160"));
     } else {
+        debug("");
+        json_object_put(input_param_root);
         return FAIL;
     }
 
-    if (bitmap_2G == NULL && bitmap_5G == NULL) {
+    if (bitmap_2G == NULL || bitmap_5G == NULL) {
+        debug("");
+        json_object_put(input_param_root);
         return FAIL;
     }
-    if (bitmap_2G != NULL) {
-        *bitmap_2G = 0;
-    } 
-    if (bitmap_5G != NULL) {
-        *bitmap_5G = 0;
-    }
+
+    *bitmap_2G = 0;
+    *bitmap_5G = 0;
+    
 
     rbuf = NULL;
     
     json_object_object_add(input_param_root, "qry_type", json_object_new_string("channellist"));
     json_object_object_add(input_param_root, "range", json_object_new_string("5G"));
 
-    
     param_input = json_object_to_json_string(input_param_root);
+    if (param_input == NULL) {
+        debug("");
+        json_object_put(input_param_root);
+        return FAIL;
+    }
 	debug("%s\n",param_input);
 
 #ifdef UNIFY_FRAMEWORK_ENABLE
     msg_obj = (uf_cmd_msg_t*)malloc(sizeof(uf_cmd_msg_t));
     if (msg_obj == NULL) {
+        json_object_put(input_param_root);
         return FAIL;
     }
     memset(msg_obj, 0, sizeof(uf_cmd_msg_t));
@@ -226,6 +114,10 @@ int spctrm_scn_wireless_country_channel(int bw,uint64_t *bitmap_2G,uint64_t *bit
     msg_obj->module = "country_channel";               /* 必填参数，其它可选参数根据需要使用 */
     msg_obj->caller = "group_change";       /* 自定义字符串，标记调用者 */
     ret = uf_client_call(msg_obj, &rbuf, NULL);
+    if (ret == FAIL) {
+        json_object_put(input_param_root);
+        return FAIL;      
+    }
     debug("%s\n",rbuf);
 
 #elif defined POPEN_CMD_ENABLE
@@ -236,17 +128,32 @@ int spctrm_scn_wireless_country_channel(int bw,uint64_t *bitmap_2G,uint64_t *bit
 #endif
 
 	output_param_root=json_tokener_parse(rbuf);
+    if (output_param_root == NULL) {
+        ret = FAIL;
+        debug("");
+        goto output_param_root_error;
+    }
+
     if (band == PLATFORM_5G || band == PLATFORM_BOTH) {
         channel_num = json_object_array_length(output_param_root);
         debug("channel_num %d",channel_num);
         for (i = 0; i < channel_num; i++) {
-        struct json_object *elem = json_object_array_get_idx(output_param_root, i);
-        frequency_obj = json_object_object_get(elem, "frequency");
-		channel_obj = json_object_object_get(elem, "channel");
-        strcpy(channel,json_object_get_string(channel_obj));
-		debug("%s\r\n",channel);
-        *bitmap_5G |= ((uint64_t)1) << channel_to_bitmap(atoi(channel));  /*36 ~ 144    149 153 157 161 165 169 173 177 181*/
-        debug("%llu",((uint64_t)1)<< 32);
+            elem = json_object_array_get_idx(output_param_root, i);
+            frequency_obj = json_object_object_get(elem, "frequency");
+            if (frequency_obj == NULL) {
+                ret = FAIL;
+                debug("");
+                goto clear;
+            }
+            channel_obj = json_object_object_get(elem, "channel");
+            if (channel_obj == NULL) {
+                ret = FAIL;
+                debug("");
+                goto clear;
+            }
+            strcpy(channel,json_object_get_string(channel_obj));
+            debug("%s\r\n",channel);
+            *bitmap_5G |= ((uint64_t)1) << channel_to_bitmap(atoi(channel));  /*36 ~ 144    149 153 157 161 165 169 173 177 181*/
         }
     }
     if (band == PLATFORM_2G || band == PLATFORM_BOTH) {
@@ -254,7 +161,17 @@ int spctrm_scn_wireless_country_channel(int bw,uint64_t *bitmap_2G,uint64_t *bit
         for (i = 0; i < channel_num; i++) {
             struct json_object *elem = json_object_array_get_idx(output_param_root, i);
             frequency_obj = json_object_object_get(elem, "frequency");
+            if (frequency_obj == NULL) {
+                ret = FAIL;
+                debug("");
+                goto clear;
+            }
             channel_obj = json_object_object_get(elem, "channel");
+            if (channel_obj == NULL) {
+                ret = FAIL;
+                debug("");
+                goto clear;
+            }
             strcpy(channel,json_object_get_string(channel_obj));
             debug("%s\r\n",channel);
             *bitmap_2G |= ((uint64_t)1)<< atoi(channel);
@@ -263,8 +180,11 @@ int spctrm_scn_wireless_country_channel(int bw,uint64_t *bitmap_2G,uint64_t *bit
     debug("bitmap_5G %llu\n",*bitmap_5G);
     debug("bitmap_2G %u\n",*bitmap_2G);
     print_bits(*bitmap_5G);
+    ret = channel_num;
 
-
+clear:
+    json_object_put(output_param_root);
+output_param_root_error:
 	json_object_put(input_param_root);
     /* 资源需要调用者释放 */
     if (rbuf) {
@@ -274,8 +194,7 @@ int spctrm_scn_wireless_country_channel(int bw,uint64_t *bitmap_2G,uint64_t *bit
 #ifdef UNIFY_FRAMEWORK_ENABLE
     free(msg_obj);
 #endif
-
-	return channel_num;
+	return ret;
 }
 #endif 
 
@@ -302,39 +221,10 @@ static inline int bitmap_to_channel (int bit_set)
     return FAIL;
 }
 
-void save_json_date () {
-    struct json_object *root;
-    struct json_object *array_list,*array_elem;
-    int i;
-    char temp[32];
-
-    root = json_object_new_object();
-    array_list = json_object_new_array();
-    spctrm_scn_common_cmd("rm /root/channel_info.json",NULL);
-    spctrm_scn_common_cmd("touch /root/channel_info.json",NULL);
-    
-    debug("");
-
-    for (i = 0;i < g_input.channel_num;i++) {
-        array_elem = json_object_new_object();
-        sprintf(temp,"%d",realtime_channel_info_5g[i].channel);
-        json_object_object_add(array_elem,"channel",json_object_new_string(temp));
-        sprintf(temp,"%d",realtime_channel_info_5g[i].floornoise);
-        json_object_object_add(array_elem,"floornoise",json_object_new_string(temp));
-        json_object_array_add(array_list,array_elem);
-    }
-    json_object_object_add(root,"channel_list",array_list);
-    json_object_to_file("/root/channel_info.json",root);
-    json_object_put(root);
-
-}
-void *spctrm_scn_wireless_ap_scan_thread(void *arg) 
+void *spctrm_scn_wireless_ap_scan_thread() 
 {
-
-    char *json_str;
-    int i,j,len;
-    double score;
-    struct channel_info current_channel_info;
+    int i,j;
+    struct channel_info current_channel_info;   
 
     while (1) {
         sem_wait(&g_semaphore);
@@ -344,15 +234,21 @@ void *spctrm_scn_wireless_ap_scan_thread(void *arg)
             g_current_time = time(NULL);
             debug("AP SCAN START");
             spctrm_scn_wireless_channel_info(&current_channel_info,PLATFORM_5G);
-            spctrm_scn_dev_wds_list(&g_device_list);
             memset(realtime_channel_info_5g,0,sizeof(realtime_channel_info_5g));
-            for (j = 0,i = 0; i < sizeof(uint64_t) * ONE_BYTE; i++) {
+            for (g_scan_schedule = 0,j = 0,i = 0; i < sizeof(uint64_t) * ONE_BYTE; i++) {
                 if ((g_input.channel_bitmap& (((uint64_t)1)<< i)) != 0) {
+                                       
+                    if (g_scan_schedule < g_input.channel_num - 1) {
+                        pthread_mutex_lock(&g_scan_schedule_mutex);
+                        g_scan_schedule++;
+                        pthread_mutex_unlock(&g_scan_schedule_mutex);
+                    }
                     
+                    
+
                     realtime_channel_info_5g[j].channel = bitmap_to_channel(i);
 
                     debug("change to channel : %d",realtime_channel_info_5g[j].channel);
-                    
                     spctrm_scn_wireless_change_channel(realtime_channel_info_5g[j].channel);
 
                     channel_scan(&realtime_channel_info_5g[j],g_input.scan_time);
@@ -382,30 +278,29 @@ void *spctrm_scn_wireless_ap_scan_thread(void *arg)
 
                 pthread_mutex_lock(&g_mutex);
                 memcpy(g_channel_info_5g,realtime_channel_info_5g,sizeof(realtime_channel_info_5g));
-
                 /* 将CPE端的数据存入完成列表，此时AP端的数据还在g_channel_info中 */
-                debug("g_finished_device_list.list_len %d",g_finished_device_list.list_len);
-                memcpy(&g_finished_device_list,&g_device_list,sizeof(struct device_list));
                 debug("g_finished_device_list.list_len %d",g_finished_device_list.list_len);
                 g_status = SCAN_IDLE;
                 g_input.scan_time = MIN_SCAN_TIME; /* restore scan time */
                 pthread_mutex_unlock(&g_mutex);
+
+                pthread_mutex_lock(&g_finished_device_list_mutex);
+                memcpy(&g_finished_device_list,&g_device_list,sizeof(struct device_list));
+                debug("g_finished_device_list.list_len %d",g_finished_device_list.list_len);
+                pthread_mutex_unlock(&g_finished_device_list_mutex);
+
+                pthread_mutex_lock(&g_scan_schedule_mutex);
+                g_scan_schedule++;
+                pthread_mutex_unlock(&g_scan_schedule_mutex);
+
                 spctrm_scn_common_cmd("dev_sta get -m spectrumScan '{\"real_time\":false}'",NULL);
+
+
             }
         }
     }
 }
 
-void apclidisable() {
-    
-    spctrm_scn_common_cmd("iwpriv apcli0 set ApCliEnable=0",NULL);
-
-}
-void apclienable() {
-    
-    spctrm_scn_common_cmd("iwpriv apcli0 set ApCliEnable=1",NULL);
-
-}
 void *spctrm_scn_wireless_cpe_scan_thread() 
 {
 
@@ -444,7 +339,6 @@ void *spctrm_scn_wireless_cpe_scan_thread()
                 }
             }
             
-
             spctrm_scn_wireless_change_channel(current_channel_info.channel);
             
             pthread_mutex_lock(&g_mutex);
@@ -465,15 +359,25 @@ timeout:
         }
     }
 }
+
 static int quick_select(int* arr, int len, int k)
 {
     int pivot, i, j, tmp;
 
     pivot = arr[len / 2];
     for (i = 0, j = len - 1;; i++, j--) {
-        while (arr[i] < pivot) i++;
-        while (arr[j] > pivot) j--;
-        if (i >= j) break;
+        while (arr[i] < pivot) {
+            i++;
+        }
+
+        while (arr[j] > pivot) {
+            j--;
+        }
+
+        if (i >= j) {
+            break;
+        }
+
         tmp = arr[i];
         arr[i] = arr[j];
         arr[j] = tmp;
@@ -505,7 +409,6 @@ static int median(int* arr, int len)
 
 int spctrm_scn_wireless_channel_info(struct channel_info *info,int band) 
 {
-    FILE *fp;
     char *rbuf;
     char *p;
     char cmd[MAX_POPEN_BUFFER_SIZE];
@@ -519,9 +422,11 @@ int spctrm_scn_wireless_channel_info(struct channel_info *info,int band)
         spctrm_scn_common_cmd("wlanconfig ra0 radio",&rbuf);
 #elif defined AP_PLATFORM
         spctrm_scn_common_cmd("wlanconfig rax0 radio",&rbuf);
+#else 
+        return FAIL;
 #endif
     } else if (band == PLATFORM_2G) {
-
+        return FAIL;
     } else {
         return FAIL;
     }
@@ -531,33 +436,61 @@ int spctrm_scn_wireless_channel_info(struct channel_info *info,int band)
 
     strtok(NULL,":");
     p = strtok(NULL,"\n");
-
+    if (p == NULL) {
+        free(rbuf);
+        return FAIL;
+    }
 
     info->channel=atoi(p);
       
     strtok(NULL,":");
     p = strtok(NULL,"\n");
+    if (p == NULL) {
+        free(rbuf);
+        return FAIL;
+    }
     info->floornoise=atoi(p);
      
     strtok(NULL,":");
     p = strtok(NULL,"\n");
+    if (p == NULL) {
+        free(rbuf);
+        return FAIL;
+    }
     info->utilization=atoi(p);
      
     strtok(NULL,"\n");
     strtok(NULL,":");
     p = strtok(NULL,"\n");
+    if (p == NULL) {
+        free(rbuf);
+        return FAIL;
+    }
     info->bw = atoi(p);
     
     strtok(NULL,":");
     p = strtok(NULL,"\n");
+    if (p == NULL) {
+        free(rbuf);
+        return FAIL;
+    }
     info->obss_util=atoi(p);
     
     strtok(NULL,":");
     p = strtok(NULL,"\n");
+    if (p == NULL) {
+        free(rbuf);
+        return FAIL;
+    }
     info->tx_util=atoi(p);
    
     strtok(NULL,":");
+
     p = strtok(NULL,"\n");
+    if (p == NULL) {
+        free(rbuf);
+        return FAIL;
+    }
 
     info->rx_util=atoi(p);
     
@@ -578,6 +511,10 @@ void channel_scan(struct channel_info *input,int scan_time)
     time_t timestamp[MAX_SCAN_TIME];
     struct tm *local_time; 
 
+    if (input == NULL) {
+        debug("param error");
+        return;
+    }
     if (scan_time > MAX_SCAN_TIME) {
         scan_time = MAX_SCAN_TIME;
     } 
@@ -647,29 +584,37 @@ void spctrm_scn_wireless_wds_state()
 	json_object *rbuf_root;
     json_object *role_obj;
 
-    char role[4];
-
     if (spctrm_scn_common_cmd("dev_sta get -m wds_status", &rbuf) == FAIL) {
         debug("cmd fail");
-        exit(0);
+        return;
     }
     rbuf_root = json_tokener_parse(rbuf);
-
+    if (rbuf_root == NULL) {
+        free(rbuf);
+        return;
+    }
     role_obj = json_object_object_get(rbuf_root,"role");
-
+    if (role_obj == NULL) {
+        goto clear;
+    }
     if (strcmp(json_object_get_string(role_obj),"cpe") == 0) {
         g_mode = CPE_MODE;
     } else if (strcmp(json_object_get_string(role_obj),"ap") == 0) {
         g_mode = AP_MODE;
     }
-
+clear:
     free(rbuf);
+    json_object_put(rbuf_root);
     debug("g_mode %d",g_mode);
 }
 
 static double calculate_N(struct channel_info *info) 
 {
     double N;
+
+    if (info == NULL) {
+        return FAIL;
+    }
 
     if (info->floornoise <= -87) {
         N = 0;
@@ -708,10 +653,13 @@ double spctrm_scn_wireless_channel_score(struct channel_info *info)
 
     if (info == NULL) {
         debug("info NULL");
-        return -1.0;
+        return FAIL;
     }
 
     N = calculate_N(info);
+    if (N == FAIL) {
+        return FAIL;
+    }
 
     return ((double)1 - N/20)*(double)((double)1 - (double)info->obss_util / 95) * 100;/* bw20公式 */
 }
@@ -723,11 +671,14 @@ void spctrm_scn_wireless_bw40_channel_score (struct device_info *device)
         debug("param NULL");
         return;
     }
-
+    debug("g_input.channel_num %d ",g_input.channel_num);
 	for (j = 0; j < g_input.channel_num / 2; j++) {
 		device->bw40_channel[j] = device->channel_info[2 * j];
+        debug("bw40_channel %d",device->bw40_channel[j].channel);
+        /* bw40底噪 */
 		device->bw40_channel[j].floornoise = MAX(device->channel_info[2 * j].floornoise, device->channel_info[2 * j + 1].floornoise);
-		device->bw40_channel[j].score = ((double)1 - calculate_N(&(device->bw40_channel[j])) / 20) *
+		/* bw40得分公式 */
+        device->bw40_channel[j].score = ((double)1 - calculate_N(&(device->bw40_channel[j])) / 20) *
 										(double)((double)1 - (double)(device->channel_info[2 * j].obss_util +
 																	  device->channel_info[2 * j + 1].obss_util) / (95 * BW_40 / 20)) * 100;
         device->bw40_channel[j].rate = device->bw40_channel[j].score /100 * 600 * 0.75;/* bw40公式 */
@@ -744,18 +695,18 @@ void spctrm_scn_wireless_bw80_channel_score (struct device_info *device)
 
 	for (j = 0; j < g_input.channel_num / 4; j++) {
 		device->bw80_channel[j] = device->channel_info[4 * j];
-
+        /* bw80底噪 */
 		device->bw80_channel[j].floornoise = MAX(MAX(MAX(device->channel_info[4 * j].floornoise,
 														device->channel_info[4 * j + 1].floornoise),
 													 	device->channel_info[4 * j + 2].floornoise),
 												 		device->channel_info[4 * j + 3].floornoise);
-
+        /* bw80得分公式 */
 		device->bw80_channel[j].score = ((double)1 - calculate_N(&(device->bw80_channel[j])) / 20) *
 										(double)((double)1 - (double)(device->channel_info[4 * j].obss_util + 
 										device->channel_info[4 * j + 1].obss_util + 
 										device->channel_info[4 * j + 2].obss_util + 
 										device->channel_info[4 * j + 3].obss_util) / (95 * BW_80 / 20)) * 100;
-        device->bw40_channel[j].rate = device->bw40_channel[j].score /100 * 1200 * 0.75;
+        device->bw80_channel[j].rate = device->bw80_channel[j].score /100 * 1200 * 0.75;
 	}
 }
 
@@ -767,7 +718,7 @@ static int timeout_func()
     for (j = 0; j < 30;j++) {
         debug("wait %d",j);
         sleep(1);
-        if (spctrm_scn_tipc_send_auto_get_msg(&g_device_list,2) == SUCCESS) {
+        if (spctrm_scn_tipc_send_auto_get_msg(&g_device_list,3) == SUCCESS) {
             return SUCCESS;
         }
     }
@@ -776,11 +727,11 @@ static int timeout_func()
 
 inline int spctrm_scn_wireless_channel_check(int channel)
 {
-    if (channel < MAX_BAND_5G_CHANNEL_NUM || channel > 181) {
+    if (channel < 36 || channel > 181) {
         return FAIL;
     }
 
-    if (channel >= MAX_BAND_5G_CHANNEL_NUM && channel <= 144) {
+    if (channel >= 36 && channel <= 144) {
         if (channel % 4 != 0) {
             return FAIL;
         }
@@ -799,12 +750,10 @@ inline int spctrm_scn_wireless_channel_check(int channel)
 int spctrm_scn_wireless_change_channel(int channel) 
 {
     char cmd[MAX_POPEN_BUFFER_SIZE];
-
     if (spctrm_scn_wireless_channel_check(channel) == FAIL) {
         debug("param error");
         return FAIL;
     }
-
     sleep(1);
     // sprintf(cmd,"dev_config update -m radio '{ \"radioList\": [ { \"radioIndex\": \"1\", \"type\":\"5G\", \"channel\":\"%d\" } ]}'",channel);
     sprintf(cmd,"iwpriv ra0 set channel=%d",channel);
@@ -839,7 +788,10 @@ int spctrm_scn_wireless_change_channel(int channel)
     msg_obj->module = "radio";             /* 必填参数，其它可选参数根据需要使用 */
     msg_obj->caller = "group_change";   /* 自定义字符串，标记调用者 */
     ret = uf_client_call(msg_obj, &rbuf, NULL);
-    // debug("%s\r\n",rbuf);
+    if (ret == FAIL) {
+        json_object_put(input_param_root);
+        return FAIL;      
+    }
     if (rbuf) {
       free(rbuf);
     }

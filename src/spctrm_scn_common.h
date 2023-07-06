@@ -23,15 +23,11 @@
 #include <uci.h>
 #include "spctrm_scn_config.h"
 
-#define HEAD_LEN (4 + 3 + 1) /* "0000│ " */ 
-#define HEX_LEN (16 * 3 + 1)
-#define SPACE_LEN (3 + 1) /* "│ " */ 
 
-int spctrm_scn_common_mac_2_nodeadd(unsigned char *mac_src);
+__u32 spctrm_scn_common_mac_2_nodeadd(unsigned char *mac_src);
 char spctrm_scn_common_read_file(char *name,char *buf,char len);
 int spctrm_scn_common_cmd(char *cmd,char **rbuf);
 void spctrm_scn_common_get_sn(char *sn);
 int spctrm_scn_common_uci_anonymous_get(char *file, char *type, char *name, char *option, char *buf, int len);
-void spctrm_scn_common_dump_packet(unsigned char *src, unsigned int len);
 
 #endif

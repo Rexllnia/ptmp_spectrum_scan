@@ -18,13 +18,28 @@
 #include <stdio.h>
 #include <math.h>
 
+static int scan(struct ubus_context *ctx, struct ubus_object *obj,
+		      struct ubus_request_data *req, const char *method,
+		      struct blob_attr *msg);
+static int get(struct ubus_context *ctx, struct ubus_object *obj,
+		      struct ubus_request_data *req, const char *method,
+		      struct blob_attr *msg);
+static int realtime_get(struct ubus_context *ctx, struct ubus_object *obj,
+		      struct ubus_request_data *req, const char *method,
+		      struct blob_attr *msg);
+static void add_channel_info_blobmsg(struct blob_buf *buf,struct channel_info *channel_info,int channel_num);
+static void add_timestamp_blobmsg(struct blob_buf *buf,time_t *timestamp);
+static void add_device_info_blobmsg(struct blob_buf *buf,struct device_info *device,int is_real_time);
+static void add_score_list_blobmsg(struct blob_buf *buf,int channel_num,struct channel_info *channel_info_list);
+static void add_channel_score_blobmsg(struct blob_buf *buf, struct channel_info *channel_info);
+
 extern struct channel_info g_channel_info_5g[MAX_BAND_5G_CHANNEL_NUM];
 extern struct channel_info realtime_channel_info_5g[MAX_BAND_5G_CHANNEL_NUM];
 extern time_t g_current_time;
 extern sem_t g_semaphore;
 extern int g_status;
-extern pthread_mutex_t g_mutex;
-
+extern pthread_mutex_t g_mutex,g_scan_schedule_mutex,g_finished_device_list_mutex;
+extern int g_scan_schedule;
 static struct ubus_context *ctx;
 static struct ubus_subscriber test_event;
 static struct blob_buf b;
@@ -87,7 +102,6 @@ static void scan_reply(struct uloop_timeout *t)
 
     blob_buf_init(&b, 0);
 
-    
     spctrm_scn_wireless_channel_info(&current_channel_info, PLATFORM_5G);
     current_channel_info.score = spctrm_scn_wireless_channel_score(&current_channel_info);
 
@@ -124,7 +138,9 @@ static void realtime_get_reply(struct uloop_timeout *t)
     spctrm_scn_dev_reset_stat(&g_device_list);
     /* find AP */
     i = spctrm_scn_dev_find_ap(&g_device_list);
-
+    if (i == FAIL) {
+        goto timeout;
+    }
     memcpy(g_device_list.device[i].channel_info, realtime_channel_info_5g, sizeof(realtime_channel_info_5g));
     g_device_list.device[i].timestamp = time(NULL);
     g_device_list.device[i].input = g_input;
@@ -138,8 +154,7 @@ static void realtime_get_reply(struct uloop_timeout *t)
     /* scan list*/
     scan_list_obj = blobmsg_open_array(&buf, "scan_list");
 
-    for (i = 0; i < g_device_list.list_len; i++)
-    {
+    for (i = 0; i < g_device_list.list_len; i++) {
         add_device_info_blobmsg(&buf, &g_device_list.device[i], true);
     }
 
@@ -150,6 +165,7 @@ timeout:
     ubus_complete_deferred_request(ctx, &req->req, 0);
     free(req);
 }
+
 static void add_channel_score_blobmsg(struct blob_buf *buf, struct channel_info *channel_info)
 {
     char temp[64];
@@ -163,13 +179,13 @@ static void add_channel_score_blobmsg(struct blob_buf *buf, struct channel_info 
     blobmsg_add_string(buf, "rate", temp);
     blobmsg_close_table(buf, channel_score_table);
 }
+
 static void add_score_list_blobmsg(struct blob_buf *buf, int channel_num, struct channel_info *channel_info_list)
 {
     int i;
     void *const score_list = blobmsg_open_array(buf, "score_list");
 
-    for (i = 0; i < channel_num; i++)
-    {
+    for (i = 0; i < channel_num; i++) {
         add_channel_score_blobmsg(buf, &channel_info_list[i]);
     }
 
@@ -184,6 +200,7 @@ static void add_bw80_blobmsg(struct blob_buf *buf, struct device_info *device)
     add_score_list_blobmsg(buf, g_input.channel_num / 4, device->bw80_channel);
     blobmsg_close_table(buf, bw80_table);
 }
+
 static void add_bw40_blobmsg(struct blob_buf *buf, struct device_info *device)
 {
     void *const bw40_table = blobmsg_open_table(buf, "bw_40");
@@ -199,8 +216,8 @@ static void add_device_info_blobmsg(struct blob_buf *buf, struct device_info *de
     void *BAND_5G_obj;
     void *bw20_table;
 
-    debug("%s  %s \r\n", __func__, device->series_no);
-    debug("%s  %s \r\n", __func__, device->role);
+    debug(" %s \r\n", device->series_no);
+    debug(" %s \r\n", device->role);
     blobmsg_add_string(buf, "SN", device->series_no);
     blobmsg_add_string(buf, "role", device->role);
 
@@ -225,19 +242,14 @@ static void add_device_info_blobmsg(struct blob_buf *buf, struct device_info *de
     blobmsg_close_table(buf, BAND_5G_obj);
     blobmsg_close_table(buf, device_obj);
 }
+
 static void add_timestamp_blobmsg(struct blob_buf *buf, time_t *timestamp)
 {
-    char temp[256];
-    struct tm *local_time; // 将时间戳转换为本地时间
-
-    local_time = localtime(timestamp);
-    sprintf(temp, "当前时间：%d年%d月%d日 %d:%d:%d",
-            local_time->tm_year + 1900, local_time->tm_mon + 1, local_time->tm_mday,
-            local_time->tm_hour, local_time->tm_min, local_time->tm_sec);
-    blobmsg_add_string(buf, "current time", temp);
+    char temp[256];   
     sprintf(temp, "%ld", *timestamp);
     blobmsg_add_string(buf, "timestamp", temp);
 }
+
 static void add_channel_info_blobmsg(struct blob_buf *buf, struct channel_info *channel_info, int channel_num)
 {
     char temp[512];
@@ -278,6 +290,7 @@ static void add_channel_info_blobmsg(struct blob_buf *buf, struct channel_info *
         blobmsg_close_table(buf, obj);
     }
 }
+
 static void add_bw20_best_channel_blobmsg(struct blob_buf *buf, struct device_list *list)
 {
     void *const bw20_table = blobmsg_open_table(buf, "bw_20");
@@ -321,11 +334,11 @@ static void add_bw20_best_channel_blobmsg(struct blob_buf *buf, struct device_li
 
     blobmsg_close_table(buf, bw20_table);
 }
+
 static void add_bw40_best_channel_blobmsg(struct blob_buf *buf, struct device_list *list)
 {
     void *const bw40_table = blobmsg_open_table(buf, "bw_40");
     int best_channel_ptr;
-    struct channel_info bw40_channel[18]; /* MAX_BAND_5G_CHANNEL_NUM / 2 */
     int j, i;
     double channel_avg_score[MAX_BAND_5G_CHANNEL_NUM];
     char temp[100]; 
@@ -337,24 +350,29 @@ static void add_bw40_best_channel_blobmsg(struct blob_buf *buf, struct device_li
         list_for_each_device(p, i, list) {
             channel_avg_score[j] += p->bw40_channel[j].score;
         }
+      debug("list->list_len %d",list->list_len);
         channel_avg_score[j] /= (list->list_len);
     }
 
     best_channel_ptr = 0;
+    debug("g_input.channel_num %d",g_input.channel_num);
     for (i = 0; i < g_input.channel_num / 2; i++) {
         if (channel_avg_score[best_channel_ptr] < channel_avg_score[i]) {
             best_channel_ptr = i;
         }
     }
     debug("best_channel_ptr %d", best_channel_ptr);
+    memset(temp,0,sizeof(temp));
     sprintf(temp, "%f", channel_avg_score[best_channel_ptr]);
     blobmsg_add_string(buf, "score", temp);
-
-    sprintf(temp, "%d", g_channel_info_5g[best_channel_ptr].channel);
+    memset(temp,0,sizeof(temp));
+    p = spctrm_scn_dev_find_ap2(list);
+    sprintf(temp, "%d",p->bw40_channel[best_channel_ptr].channel);
     blobmsg_add_string(buf, "channel", temp);
 
     blobmsg_close_table(buf, bw40_table);
 }
+
 static void add_bw80_best_channel_blobmsg(struct blob_buf *buf, struct device_list *list)
 {
     void *const bw80_table = blobmsg_open_table(buf, "bw_80");
@@ -389,8 +407,10 @@ static void add_bw80_best_channel_blobmsg(struct blob_buf *buf, struct device_li
 
     blobmsg_close_table(buf, bw80_table);
 }
+
 static void get_reply(struct uloop_timeout *t)
 {
+    struct channel_info current_channel_info;
     struct get_request *req = container_of(t, struct get_request, timeout);
     static struct blob_buf buf;
     struct device_info *p;
@@ -402,14 +422,8 @@ static void get_reply(struct uloop_timeout *t)
 
     blob_buf_init(&buf, 0);
 
-    /* find AP */
-    i = spctrm_scn_dev_find_ap(&g_finished_device_list);
 
-    memcpy(g_finished_device_list.device[i].channel_info, g_channel_info_5g, sizeof(g_channel_info_5g));
-    g_finished_device_list.device[i].timestamp = g_current_time;
-    g_finished_device_list.device[i].input = g_input;
-    g_finished_device_list.device[i].status = g_status;
-
+    
     if (g_status == SCAN_TIMEOUT) {
         goto scan_timeout;
     }
@@ -417,9 +431,21 @@ static void get_reply(struct uloop_timeout *t)
         goto scan_busy;
     }
     if (g_status == SCAN_NOT_START) {
-        goto scan_not_start;
         debug("scan not start");
+        goto scan_not_start;
     }
+
+    /* find AP */
+    i = spctrm_scn_dev_find_ap(&g_finished_device_list);
+    if (i == FAIL) {
+        goto error;
+    }
+    pthread_mutex_lock(&g_finished_device_list_mutex);
+    memcpy(g_finished_device_list.device[i].channel_info, g_channel_info_5g, sizeof(g_channel_info_5g));
+    g_finished_device_list.device[i].timestamp = g_current_time;
+    g_finished_device_list.device[i].input = g_input;
+    g_finished_device_list.device[i].status = g_status;
+    pthread_mutex_unlock(&g_finished_device_list_mutex);
 
     blobmsg_add_string(&buf, "status", "idle");
     blobmsg_add_string(&buf, "status_code", "2");
@@ -443,10 +469,7 @@ static void get_reply(struct uloop_timeout *t)
     add_bw20_best_channel_blobmsg(&buf, &g_finished_device_list);
     add_bw40_best_channel_blobmsg(&buf, &g_finished_device_list);
     add_bw80_best_channel_blobmsg(&buf, &g_finished_device_list);
-
     blobmsg_close_table(&buf, best_channel_obj);
-    // blobmsg_buf_write_json();
-    spctrm_scn_common_dump_packet(buf.buf,buf.buflen);
     ubus_send_reply(ctx, &req->req, buf.head);
 
     ubus_complete_deferred_request(ctx, &req->req, 0);
@@ -458,6 +481,7 @@ scan_not_start:
 
     blobmsg_add_string(&buf, "status", "not start");
     blobmsg_add_string(&buf, "status_code", "0");
+    
     ubus_send_reply(ctx, &req->req, buf.head);
 
     ubus_complete_deferred_request(ctx, &req->req, 0);
@@ -468,10 +492,14 @@ scan_not_start:
 scan_timeout:
     blobmsg_add_string(&buf, "status", "timeout");
     blobmsg_add_string(&buf, "status_code", "3");
+
+
+    spctrm_scn_wireless_channel_info(&current_channel_info, PLATFORM_5G);
+    current_channel_info.score = spctrm_scn_wireless_channel_score(&current_channel_info);
+    sprintf(temp,"%d",current_channel_info.channel);
+    blobmsg_add_string(&buf, "current_scan_channel", temp);
+
     ubus_send_reply(ctx, &req->req, buf.head);
-
-
-
     ubus_complete_deferred_request(ctx, &req->req, 0);
 
     free(req);
@@ -480,14 +508,21 @@ scan_timeout:
 scan_busy:
     blobmsg_add_string(&buf, "status", "busy");
     blobmsg_add_string(&buf, "status_code", "1");
+
+    spctrm_scn_wireless_channel_info(&current_channel_info, PLATFORM_5G);
+    current_channel_info.score = spctrm_scn_wireless_channel_score(&current_channel_info);
+
+    pthread_mutex_lock(&g_scan_schedule_mutex);
+    sprintf(temp,"%d",g_scan_schedule);
+    pthread_mutex_unlock(&g_scan_schedule_mutex);
+
+    blobmsg_add_string(&buf, "scan_schedule", temp);
+
     ubus_send_reply(ctx, &req->req, buf.head);
-
     ubus_complete_deferred_request(ctx, &req->req, 0);
-
+error:
     free(req);
 }
-
-
 
 static int scan(struct ubus_context *ctx, struct ubus_object *obj,
                 struct ubus_request_data *req, const char *method,
@@ -538,6 +573,10 @@ static int scan(struct ubus_context *ctx, struct ubus_object *obj,
         spctrm_scn_wireless_channel_info(&channel_info, blobmsg_get_u32(tb[BAND]));
 
         total_band_num = spctrm_scn_wireless_country_channel(channel_info.bw, &bitmap_2G, &bitmap_5G, PLATFORM_5G);
+        if (total_band_num == FAIL) {
+            debug("spctrm_scn_wireless_country_channel FAIL");
+            goto error;
+        }
         g_input.band = blobmsg_get_u32(tb[BAND]);
 
         if (tb[SCAN_TIME]) {
@@ -588,17 +627,52 @@ static int scan(struct ubus_context *ctx, struct ubus_object *obj,
         }
         sprintf(hreq->data, "%d", SUCCESS);
 
+        pthread_mutex_lock(&g_finished_device_list_mutex);
         memset(&g_finished_device_list, 0, sizeof(g_finished_device_list)); 
-        spctrm_scn_dev_wds_list(&g_finished_device_list);
+        if (spctrm_scn_dev_wds_list(&g_finished_device_list) == FAIL) {
+            len = sizeof(*hreq) + sizeof(msgstr) + 1;
+            hreq = calloc(1, len);
+            if (!hreq) {
+                return UBUS_STATUS_UNKNOWN_ERROR;
+            }
+            sprintf(hreq->data, "{\"code\":%d}", FAIL);
+            pthread_mutex_unlock(&g_finished_device_list_mutex);
+            goto error;
+        }
+        pthread_mutex_unlock(&g_finished_device_list_mutex);
 
         pthread_mutex_lock(&g_mutex);
         memset(&g_device_list, 0, sizeof(g_device_list)); 
-        spctrm_scn_dev_wds_list(&g_device_list);
+        if (spctrm_scn_dev_wds_list(&g_device_list) == FAIL) {
+            len = sizeof(*hreq) + sizeof(msgstr) + 1;
+            hreq = calloc(1, len);
+            if (!hreq) {
+                return UBUS_STATUS_UNKNOWN_ERROR;
+            }
+            sprintf(hreq->data, "{\"code\":%d}", FAIL);
+            pthread_mutex_unlock(&g_mutex);
+            goto error;
+        }
         g_status = SCAN_BUSY;
-        spctrm_scn_tipc_send_start_msg(&g_finished_device_list, 1000);
-        /* spctrm_scn_dev_reset_stat(&g_finished_device_list); */ 
         pthread_mutex_unlock(&g_mutex);
+
+
+        pthread_mutex_lock(&g_finished_device_list_mutex);
+        debug("");
+        if (spctrm_scn_tipc_send_start_msg(&g_finished_device_list, 1000) == FAIL) {
+            pthread_mutex_unlock(&g_finished_device_list_mutex);
+            len = sizeof(*hreq) + sizeof(msgstr) + 1;
+            hreq = calloc(1, len);
+            if (!hreq) {
+                return UBUS_STATUS_UNKNOWN_ERROR;
+            }
+            sprintf(hreq->data, "{\"code\":%d}", FAIL);
+            goto error;
+        }
+        pthread_mutex_unlock(&g_finished_device_list_mutex);
+
         sem_post(&g_semaphore);
+
     } else {
         len = sizeof(*hreq) + sizeof(msgstr) + 1;
         hreq = calloc(1, len);
@@ -623,8 +697,8 @@ static int realtime_get(struct ubus_context *ctx, struct ubus_object *obj,
     struct realtime_get_request *hreq;
     char format[100];
     const char *msgstr = "(error)";
-
     size_t len = sizeof(*hreq) + sizeof(format) + strlen(obj->name) + strlen(msgstr) + 1;
+
     hreq = calloc(1, len);
     if (!hreq) {
         return UBUS_STATUS_UNKNOWN_ERROR;
@@ -665,12 +739,14 @@ static void server_main(void)
     ret = ubus_add_object(ctx, &channel_score_object);
     if (ret) {
         fprintf(stderr, "Failed to add object: %s\n", ubus_strerror(ret));
+        return;
     }
-        
+    
 
     ret = ubus_register_subscriber(ctx, &test_event);
     if (ret) {
         fprintf(stderr, "Failed to add watch handler: %s\n", ubus_strerror(ret));
+        return;
     }
 
     uloop_run();
@@ -685,7 +761,7 @@ void *spctrm_scn_ubus_thread(void *arg)
     ctx = ubus_connect(ubus_socket);
     if (!ctx) {
         fprintf(stderr, "Failed to connect to ubus\n");
-        return -1;
+        return NULL;
     }
 
     ubus_add_uloop(ctx);

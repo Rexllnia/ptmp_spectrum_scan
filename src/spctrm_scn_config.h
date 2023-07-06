@@ -17,6 +17,8 @@
 
 #define P2P
 
+#define ETH_ALEN 6
+
 #define MAX_POPEN_BUFFER_SIZE   8192
 
 #define BW_20 20
