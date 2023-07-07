@@ -47,7 +47,6 @@ dev_list : type device_list
 
 int spctrm_scn_dev_chk_stat(struct device_list *device_list);
 int spctrm_scn_dev_find_by_sn(struct device_list *device_list,char *series_no);
-int spctrm_scn_dev_wds_list(struct device_list *device_list);
 void spctrm_scn_dev_reset_stat(struct device_list *list);
 int spctrm_scn_dev_list_cmp(struct device_list *src_list,struct device_list *dest_list);
 struct device_info *spctrm_scn_dev_find_ap2(struct device_list *device_list);

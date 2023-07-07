@@ -17,11 +17,11 @@
 
 enum {
     BAND,
-    CHANNEL_BITMAP,
+    CHANNEL_LIST,
     SCAN_TIME,
     __SCAN_MAX
 };
 
-void *spctrm_scn_ubus_thread(void *arg);
-
+void spctrm_scn_ubus_task(void);
+void spctrm_scn_ubus_close();
 #endif

@@ -46,92 +46,37 @@ volatile int g_status,g_scan_time;
 volatile long g_scan_timestamp;
 extern long g_bitmap_2G,g_bitmap_5G;
 
-pthread_mutex_t g_mutex,g_scan_schedule_mutex,g_finished_device_list_mutex;
-pthread_t pid1, pid2 ,pid3;
-sem_t g_semaphore;
+static struct ubus_context *ctx;
 
+static void server_main(void)
+{
+    int ret;
+    if (g_status == AP_MODE) {
+
+    } else if (g_status == CPE_MODE) {
+
+    }
+    debug("");
+    spctrm_scn_ubus_task();
+    debug("");
+    // spctrm_scn_tipc_task();
+    debug("");
+    uloop_run();
+}
 
 int main(int argc, char **argv)
 {
-    FILE *fp;
     int ret;
 
-    ret = FAIL;
-    sem_init(&g_semaphore,0,0);
-    g_input.scan_time = MIN_SCAN_TIME;
-    g_status = SCAN_NOT_START;
-	g_input.channel_bitmap = 0;
-    spctrm_scn_wireless_wds_state ();
-    pthread_mutex_init(&g_mutex, NULL);
-    pthread_mutex_init(&g_scan_schedule_mutex,NULL);
-    pthread_mutex_init(&g_finished_device_list_mutex,NULL);
-    
-    // spctrm_scn_rlog_module_set("spectrum_scan");
-    // spctrm_scn_rlog_module_enable("spectrum_scan");
-
-    spctrm_scn_common_cmd("mkdir /tmp/spectrum_scan",NULL);
-    fp = fopen("/tmp/spectrum_scan/curl_pid","w+");
-    if (fp == NULL) {
-        return 0;
-    }
-
-    fprintf(fp,"%d",getpid());
-    fclose(fp);
-
-    if (g_mode == AP_MODE) {
-        debug("ap mode");
-        if ((pthread_create(&pid1, NULL, spctrm_scn_wireless_ap_scan_thread, NULL)) != 0) {
-
-            return 0;
-        }
-        if ((pthread_create(&pid3, NULL, spctrm_scn_ubus_thread, NULL)) != 0) {
-
-            return 0;
-        }
-        if ((pthread_create(&pid2, NULL, spctrm_scn_tipc_thread, NULL)) != 0) {
-
-            return 0;
-        }
-
-    } else if (g_mode == CPE_MODE) {
-        debug("cpe mode");
-        if ((pthread_create(&pid1, NULL, spctrm_scn_wireless_cpe_scan_thread, NULL)) != 0) {
-
-            return 0;
-        }
-        if ((pthread_create(&pid2, NULL, spctrm_scn_tipc_thread, NULL)) != 0) {
-
-            return 0;
-        }
-
-    }
-
-if (g_mode == AP_MODE) {
-
-	if (pthread_join(pid1, NULL) != 0) {
-	
-		return 0;
-    }
-	if (pthread_join(pid2, NULL) != 0) {
-	
-		return 0;
-    }
-	if (pthread_join(pid3, NULL) != 0) {
-	
-		return 0;
-    }
 
 
-} else if (g_mode == CPE_MODE) {
-    if (pthread_join(pid1, NULL) != 0) {
-    
-        return 0;
-    }
-    if (pthread_join(pid2, NULL) != 0) {
-        
-            return 0;
-    }
-}
+    uloop_init();
+    server_main();
+
+    debug("done");
+    // tipc_close();
+    spctrm_scn_ubus_close();
+    uloop_done();
 
 	return 0;
 }
