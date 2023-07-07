@@ -34,7 +34,7 @@ struct device_info {
 };
 struct device_list {
     int list_len;
-    struct device_info device[32];
+    struct device_info device[MAX_DEVICE_NUM];
 };
 
 /* 

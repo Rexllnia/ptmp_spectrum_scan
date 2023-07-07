@@ -105,6 +105,9 @@ static void scan_reply(struct uloop_timeout *t)
     spctrm_scn_wireless_channel_info(&current_channel_info, PLATFORM_5G);
     current_channel_info.score = spctrm_scn_wireless_channel_score(&current_channel_info);
 
+    sprintf(temp,"%d",g_input.channel_num);
+    blobmsg_add_string(&b, "total_channel",temp);
+
     sprintf(temp, "%d", current_channel_info.channel);
     blobmsg_add_string(&b, "current_channel", temp);
 
@@ -402,7 +405,9 @@ static void add_bw80_best_channel_blobmsg(struct blob_buf *buf, struct device_li
     sprintf(temp, "%f", channel_avg_score[best_channel_ptr]);
     blobmsg_add_string(buf, "score", temp);
 
-    sprintf(temp, "%d", g_channel_info_5g[best_channel_ptr].channel);
+    p = spctrm_scn_dev_find_ap2(list);
+    sprintf(temp, "%d",p->bw80_channel[best_channel_ptr].channel);
+
     blobmsg_add_string(buf, "channel", temp);
 
     blobmsg_close_table(buf, bw80_table);
@@ -449,8 +454,6 @@ static void get_reply(struct uloop_timeout *t)
 
     blobmsg_add_string(&buf, "status", "idle");
     blobmsg_add_string(&buf, "status_code", "2");
-    sprintf(temp,"%d",g_input.channel_num);
-    blobmsg_add_string(&buf, "total_channel",temp);
     add_timestamp_blobmsg(&buf, &g_current_time);
     debug("g_finished_device_list.list_len %d", g_finished_device_list.list_len);
     /* scan list*/

@@ -6,7 +6,6 @@ extern struct user_input g_input;
 
 int spctrm_scn_dev_list_cmp(struct device_list *src_list,struct device_list *dest_list) {
 
-
     int i,count;
     struct device_info *p;
     count = 0;
@@ -198,12 +197,13 @@ int spctrm_scn_dev_wds_list(struct device_list *device_list)
     }
     device_list->list_len = json_object_array_length(list_pair_obj);
 
-    if (device_list->list_len > 32) {
+    if (device_list->list_len > MAX_DEVICE_NUM) {
         free(rbuf);
         json_object_put(rbuf_root);
-        debug("over 32");
+        debug("over MAX_DEVICE_NUM");
         return FAIL;
     }
+
     for (i = 0;i < device_list->list_len;i++) {
         list_pair_elem = json_object_array_get_idx(list_pair_obj,i);
         sn_obj = json_object_object_get(list_pair_elem,"sn");

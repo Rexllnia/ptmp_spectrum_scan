@@ -249,7 +249,9 @@ void *spctrm_scn_wireless_ap_scan_thread()
                     realtime_channel_info_5g[j].channel = bitmap_to_channel(i);
 
                     debug("change to channel : %d",realtime_channel_info_5g[j].channel);
-                    spctrm_scn_wireless_change_channel(realtime_channel_info_5g[j].channel);
+                    if (spctrm_scn_wireless_change_channel(realtime_channel_info_5g[j].channel) == FAIL) {
+                        goto error;
+                    }
 
                     channel_scan(&realtime_channel_info_5g[j],g_input.scan_time);
                
@@ -262,20 +264,22 @@ void *spctrm_scn_wireless_ap_scan_thread()
                 }
             }
 
-            spctrm_scn_wireless_change_channel(current_channel_info.channel);
+            if (spctrm_scn_wireless_change_channel(current_channel_info.channel) == FAIL) {
+                goto error;
+            }
             
             spctrm_scn_dev_reset_stat(&g_device_list);
         	/* find AP */
 	        i = spctrm_scn_dev_find_ap(&g_device_list);
             g_device_list.device[i].finished_flag = FINISHED;
             if (timeout_func() == FAIL) {
+error:
                 pthread_mutex_lock(&g_mutex);
                 g_status = SCAN_TIMEOUT;
                 g_input.scan_time = MIN_SCAN_TIME; /* restore scan time */
                 pthread_mutex_unlock(&g_mutex);
             } else {
                 debug( "line : %d func %s g_status : %d,",__LINE__,__func__,g_status);
-
                 pthread_mutex_lock(&g_mutex);
                 memcpy(g_channel_info_5g,realtime_channel_info_5g,sizeof(realtime_channel_info_5g));
                 /* 将CPE端的数据存入完成列表，此时AP端的数据还在g_channel_info中 */
@@ -303,7 +307,6 @@ void *spctrm_scn_wireless_ap_scan_thread()
 
 void *spctrm_scn_wireless_cpe_scan_thread() 
 {
-
     char *json_str;
     int i,j,len;
     double score;
@@ -323,7 +326,9 @@ void *spctrm_scn_wireless_cpe_scan_thread()
                     realtime_channel_info_5g[j].channel = bitmap_to_channel(i);
                     debug("change channel to %d ",realtime_channel_info_5g[j].channel);
                     
-                    spctrm_scn_wireless_change_channel(realtime_channel_info_5g[j].channel);
+                    if (spctrm_scn_wireless_change_channel(realtime_channel_info_5g[j].channel) == FAIL) {
+                        goto error;
+                    }
 
                     channel_scan(&realtime_channel_info_5g[j],g_input.scan_time);
                     
@@ -335,11 +340,13 @@ void *spctrm_scn_wireless_cpe_scan_thread()
                 }
                 
                 if (g_status == SCAN_TIMEOUT) {
-                    goto timeout;
+                    goto error;
                 }
             }
             
-            spctrm_scn_wireless_change_channel(current_channel_info.channel);
+            if (spctrm_scn_wireless_change_channel(current_channel_info.channel) == FAIL) {
+                goto error;
+            }
             
             pthread_mutex_lock(&g_mutex);
             memcpy(g_channel_info_5g,realtime_channel_info_5g,sizeof(realtime_channel_info_5g));
@@ -348,7 +355,7 @@ void *spctrm_scn_wireless_cpe_scan_thread()
             g_input.scan_time = MIN_SCAN_TIME; /* restore scan time */
             pthread_mutex_unlock(&g_mutex);
         }
-timeout:
+error:
     if (g_status == SCAN_TIMEOUT) {
             spctrm_scn_wireless_change_channel(current_channel_info.channel);
             pthread_mutex_lock(&g_mutex);
@@ -501,7 +508,6 @@ int spctrm_scn_wireless_channel_info(struct channel_info *info,int band)
 
 void channel_scan(struct channel_info *input,int scan_time) 
 {
-    FILE *fp;
     int i,err_count;
     struct channel_info info[MAX_SCAN_TIME];
     int utilization_temp[MAX_SCAN_TIME];
@@ -531,46 +537,25 @@ void channel_scan(struct channel_info *input,int scan_time)
         debug("current channel %d",info[i].channel);
     }
     
-    fp = fopen("./channel_info","a+");
-    if (fp == NULL) {
-        debug("open fail");
-        return;
-    }
-    fprintf(fp,"\r\n********channel %d ***********\r\n",info[0].channel);
-    fprintf(fp,"bw %d\r\n",input->bw=info[0].bw);
-
-    fprintf(fp,"date\t\t\t");
-    fprintf(fp,"channel\t\t");
-    fprintf(fp,"floornoise\t");
-    fprintf(fp,"utilization\t");
-    fprintf(fp,"obss_util\t");
-    fprintf(fp,"rx_util\t\t");
-    fprintf(fp,"tx_util\r\n");
+    input->bw=info[0].bw;
 
 	
     for (i = 0 ;i < scan_time ;i++) {
-    	
-	    local_time = localtime(&timestamp[i]);
-        fprintf(fp,"%d:%d:%d\t\t\t",local_time->tm_hour, local_time->tm_min, local_time->tm_sec);
-        
-        fprintf(fp,"%d\t\t",channel_temp[i] = info[i].channel);
+
+        channel_temp[i] = info[i].channel;
         if (info[i].channel == info[0].channel) {
-            fprintf(fp,"%d\t\t",floornoise_temp[i] = info[i].floornoise);
-            fprintf(fp,"%d\t\t",utilization_temp[i] = info[i].utilization);
-            fprintf(fp,"%d\t\t",obss_util_temp[i] = info[i].obss_util);
-            fprintf(fp,"%d\t\t",info[i].rx_util);
-            fprintf(fp,"%d\r\n",info[i].tx_util);            
+            floornoise_temp[i] = info[i].floornoise;
+            utilization_temp[i] = info[i].utilization;
+            obss_util_temp[i] = info[i].obss_util;        
         } else {
             err_count++;           
         }
     }
 
-    debug("median floornoise%d \r\n",input->floornoise = median(floornoise_temp,scan_time - err_count));
-    debug("median utilization%d \r\n",input->utilization = median(utilization_temp,scan_time - err_count));
-    debug("median obss_util%d \r\n",input->obss_util = median(obss_util_temp,scan_time - err_count));
+    input->floornoise = median(floornoise_temp,scan_time - err_count);
+    input->utilization = median(utilization_temp,scan_time - err_count);
+    input->obss_util = median(obss_util_temp,scan_time - err_count);
     
-    fprintf(fp,"*******************************************************\r\n");
-    fclose(fp);
     
     debug("g_status %d",g_status);
 

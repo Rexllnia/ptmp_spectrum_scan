@@ -19,12 +19,13 @@
 
 #define ETH_ALEN 6
 
-#define MAX_POPEN_BUFFER_SIZE   8192
+#define MAX_DEVICE_NUM  32
+#define MAX_POPEN_BUFFER_SIZE   (4 * 2048)
 
-#define BW_20 20
-#define BW_40 40
-#define BW_80 80
-#define BW_160 160
+#define BW_20   20
+#define BW_40   40
+#define BW_80   80
+#define BW_160  160
 
 #define SCAN_BUSY       1
 #define SCAN_IDLE       2
