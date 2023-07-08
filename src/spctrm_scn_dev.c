@@ -1,6 +1,4 @@
 #include "spctrm_scn_dev.h"
-#include "spctrm_scn_config.h"
-#include <stdio.h>
 
 extern struct user_input g_input;
 

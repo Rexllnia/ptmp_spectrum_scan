@@ -22,6 +22,6 @@ enum {
     __SCAN_MAX
 };
 
-void *spctrm_scn_ubus_thread(void *arg);
+void spctrm_scn_ubus_thread();
 
 #endif

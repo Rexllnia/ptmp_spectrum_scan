@@ -4,6 +4,7 @@ static int timeout_func();
 static double calculate_N(struct channel_info *info);
 static inline channel_to_bitmap (int channel);
 static inline bitmap_to_channel (int bit_set);
+static void channel_scan(struct channel_info *input,int scan_time);
 
 extern unsigned char g_mode;
 extern struct device_list g_finished_device_list;
@@ -43,7 +44,8 @@ int spctrm_scn_wireless_country_channel(int bw,uint64_t *bitmap_2G,uint64_t *bit
 #endif     
     int ret;
     int channel_num;
-    char *rbuf,*param_input;
+    char *rbuf;
+    const char *param_input;
     json_object *input_param_root,*output_param_root;
     json_object *qry_type_obj,*band_obj;
 	int i,p;
@@ -280,24 +282,26 @@ error:
                 pthread_mutex_unlock(&g_mutex);
             } else {
                 debug( "line : %d func %s g_status : %d,",__LINE__,__func__,g_status);
-                pthread_mutex_lock(&g_mutex);
                 memcpy(g_channel_info_5g,realtime_channel_info_5g,sizeof(realtime_channel_info_5g));
-                /* 将CPE端的数据存入完成列表，此时AP端的数据还在g_channel_info中 */
-                debug("g_finished_device_list.list_len %d",g_finished_device_list.list_len);
-                g_status = SCAN_IDLE;
-                g_input.scan_time = MIN_SCAN_TIME; /* restore scan time */
-                pthread_mutex_unlock(&g_mutex);
 
                 pthread_mutex_lock(&g_finished_device_list_mutex);
                 memcpy(&g_finished_device_list,&g_device_list,sizeof(struct device_list));
                 debug("g_finished_device_list.list_len %d",g_finished_device_list.list_len);
                 pthread_mutex_unlock(&g_finished_device_list_mutex);
 
+                // spctrm_scn_common_cmd("dev_sta get -m spectrumScan '{\"real_time\":false}'",NULL);
+
+                pthread_mutex_lock(&g_mutex);
+                debug("g_finished_device_list.list_len %d",g_finished_device_list.list_len);
+                g_status = SCAN_IDLE;
+                g_input.scan_time = MIN_SCAN_TIME; /* restore scan time */
+                pthread_mutex_unlock(&g_mutex);
+
                 pthread_mutex_lock(&g_scan_schedule_mutex);
                 g_scan_schedule++;
                 pthread_mutex_unlock(&g_scan_schedule_mutex);
 
-                spctrm_scn_common_cmd("dev_sta get -m spectrumScan '{\"real_time\":false}'",NULL);
+                
 
 
             }

@@ -12,11 +12,9 @@
  */
 
 #include "spctrm_scn_ubus.h"
-#include "spctrm_scn_config.h"
-#include "spctrm_scn_dev.h"
-#include <stdbool.h>
-#include <stdio.h>
-#include <math.h>
+
+
+
 
 static int scan(struct ubus_context *ctx, struct ubus_object *obj,
 		      struct ubus_request_data *req, const char *method,
@@ -32,6 +30,7 @@ static void add_timestamp_blobmsg(struct blob_buf *buf,time_t *timestamp);
 static void add_device_info_blobmsg(struct blob_buf *buf,struct device_info *device,int is_real_time);
 static void add_score_list_blobmsg(struct blob_buf *buf,int channel_num,struct channel_info *channel_info_list);
 static void add_channel_score_blobmsg(struct blob_buf *buf, struct channel_info *channel_info);
+static void spctrm_scn_ubus_reconnect_timer(struct uloop_timeout *t);
 
 extern struct channel_info g_channel_info_5g[MAX_BAND_5G_CHANNEL_NUM];
 extern struct channel_info realtime_channel_info_5g[MAX_BAND_5G_CHANNEL_NUM];
@@ -41,12 +40,14 @@ extern int g_status;
 extern pthread_mutex_t g_mutex,g_scan_schedule_mutex,g_finished_device_list_mutex;
 extern int g_scan_schedule;
 static struct ubus_context *ctx;
-static struct ubus_subscriber test_event;
+static struct ubus_subscriber remove_event;
 static struct blob_buf b;
 struct user_input g_input;
 
 struct device_list g_finished_device_list;
 struct device_list g_device_list;
+
+static struct uloop_timeout retry;
 
 struct scan_request
 {
@@ -293,7 +294,42 @@ static void add_channel_info_blobmsg(struct blob_buf *buf, struct channel_info *
         blobmsg_close_table(buf, obj);
     }
 }
+static void add_avg_score_list_blobmsg(struct blob_buf *buf,struct device_list *list) 
+{
+    int j;
+    int i;
+    char temp[256];
+    struct device_info *p;
+    double channel_avg_score[MAX_BAND_5G_CHANNEL_NUM];
+    void *avg_score_list_obj;
+    void *avg_score_elem_obj;
 
+    memset(channel_avg_score, 0, MAX_BAND_5G_CHANNEL_NUM * sizeof(double));
+    avg_score_list_obj = blobmsg_open_array(buf, "avg_score_list");
+    for (j = 0; j < g_input.channel_num; j++) {
+        list_for_each_device(p, i, list) {
+            channel_avg_score[j] += p->channel_info[j].score;
+            
+            debug("score  %f", p->channel_info[j].score);
+        }
+        debug("channel %d", p->channel_info[j].channel);
+        debug("ans  %f", channel_avg_score[j]);
+        channel_avg_score[j] /= (list->list_len);
+        avg_score_elem_obj = blobmsg_open_table(buf,NULL);
+        p = spctrm_scn_dev_find_ap2(list);
+        memset(temp,0,sizeof(temp));
+        sprintf(temp,"%d",p->channel_info[j].channel);
+        blobmsg_add_string(buf,"channel",temp);
+        memset(temp,0,sizeof(temp));    
+        sprintf(temp,"%f",channel_avg_score[j]);
+        blobmsg_add_string(buf,"avg_score",temp);
+        blobmsg_close_table(buf,avg_score_elem_obj);
+        avg_score_elem_obj = NULL;
+    }
+
+    blobmsg_close_array(buf,avg_score_list_obj);
+    
+}
 static void add_bw20_best_channel_blobmsg(struct blob_buf *buf, struct device_list *list)
 {
     void *const bw20_table = blobmsg_open_table(buf, "bw_20");
@@ -425,6 +461,8 @@ static void get_reply(struct uloop_timeout *t)
     void *best_channel_obj;
     void *scan_list_obj;
 
+    debug("");
+
     blob_buf_init(&buf, 0);
 
 
@@ -466,6 +504,8 @@ static void get_reply(struct uloop_timeout *t)
     debug("");
     blobmsg_close_array(&buf, scan_list_obj);
 
+    /* avg score channel list*/
+    add_avg_score_list_blobmsg(&buf,&g_finished_device_list);
     /* best channel*/
     best_channel_obj = blobmsg_open_table(&buf, "best_channel");
     debug("");
@@ -478,6 +518,7 @@ static void get_reply(struct uloop_timeout *t)
     ubus_complete_deferred_request(ctx, &req->req, 0);
 
     free(req);
+    debug("return");
     return;
 
 scan_not_start:
@@ -490,6 +531,7 @@ scan_not_start:
     ubus_complete_deferred_request(ctx, &req->req, 0);
 
     free(req);
+    debug("return");
     return;
 
 scan_timeout:
@@ -506,6 +548,7 @@ scan_timeout:
     ubus_complete_deferred_request(ctx, &req->req, 0);
 
     free(req);
+    debug("return");
     return;
 
 scan_busy:
@@ -525,6 +568,7 @@ scan_busy:
     ubus_complete_deferred_request(ctx, &req->req, 0);
 error:
     free(req);
+    debug("return");
 }
 
 static int scan(struct ubus_context *ctx, struct ubus_object *obj,
@@ -723,6 +767,7 @@ static int get(struct ubus_context *ctx, struct ubus_object *obj,
     const char *msgstr = "(error)";
     size_t len = sizeof(*hreq) + sizeof(format) + strlen(obj->name) + strlen(msgstr) + 1;
 
+    debug("");
     hreq = calloc(1, len);
     if (!hreq) {
         return UBUS_STATUS_UNKNOWN_ERROR;
@@ -746,31 +791,58 @@ static void server_main(void)
     }
     
 
-    ret = ubus_register_subscriber(ctx, &test_event);
-    if (ret) {
-        fprintf(stderr, "Failed to add watch handler: %s\n", ubus_strerror(ret));
-        return;
-    }
+    // ret = ubus_register_subscriber(ctx, &remove_event);
+    // if (ret) {
+    //     fprintf(stderr, "Failed to add watch handler: %s\n", ubus_strerror(ret));
+    //     return;
+    // }
 
     uloop_run();
 }
-void *spctrm_scn_ubus_thread(void *arg)
+
+
+
+static void spctrm_scn_ubus_reconnect_timer(struct uloop_timeout *t) 
 {
+    if (ubus_reconnect(ctx,NULL) != UBUS_STATUS_OK) {
+        uloop_timeout_set(&retry,1000);
+        debug("retry");
+        return;
+    }
+    debug("finish  obj id %08x",ctx->local_id);
+    ubus_add_uloop(ctx);
+
+}
+
+
+static void spctrm_scn_ubus_connection_lost(struct ubus_context *ctx)
+{
+    debug("connection_lost");
+    retry.cb = spctrm_scn_ubus_reconnect_timer;
+    uloop_timeout_set(&retry,1000);
+}
+void spctrm_scn_ubus_thread()
+{
+    
     const char *ubus_socket = NULL;
 
     uloop_init();
-    signal(SIGPIPE, SIG_IGN);
-
+    // signal(SIGPIPE, SIG_IGN);
+    debug("ubus start");
     ctx = ubus_connect(ubus_socket);
     if (!ctx) {
         fprintf(stderr, "Failed to connect to ubus\n");
-        return NULL;
+        return;
     }
 
+    ctx->connection_lost = spctrm_scn_ubus_connection_lost;
     ubus_add_uloop(ctx);
 
     server_main();
 
     ubus_free(ctx);
     uloop_done();
+    debug("ubus done");
+    
+
 }

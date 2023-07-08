@@ -84,10 +84,6 @@ int main(int argc, char **argv)
 
             return 0;
         }
-        if ((pthread_create(&pid3, NULL, spctrm_scn_ubus_thread, NULL)) != 0) {
-
-            return 0;
-        }
         if ((pthread_create(&pid2, NULL, spctrm_scn_tipc_thread, NULL)) != 0) {
 
             return 0;
@@ -103,9 +99,10 @@ int main(int argc, char **argv)
 
             return 0;
         }
-
     }
-
+    if (g_mode == AP_MODE) {
+        spctrm_scn_ubus_thread();
+    }
 if (g_mode == AP_MODE) {
 
 	if (pthread_join(pid1, NULL) != 0) {
@@ -116,11 +113,6 @@ if (g_mode == AP_MODE) {
 	
 		return 0;
     }
-	if (pthread_join(pid3, NULL) != 0) {
-	
-		return 0;
-    }
-
 
 } else if (g_mode == CPE_MODE) {
     if (pthread_join(pid1, NULL) != 0) {

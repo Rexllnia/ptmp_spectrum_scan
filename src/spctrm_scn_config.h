@@ -15,12 +15,10 @@
 #define BRIDGE_PLATFORM
 #define UDP_FUNCTION
 
-#define P2P
-
 #define ETH_ALEN 6
 
 #define MAX_DEVICE_NUM  32
-#define MAX_POPEN_BUFFER_SIZE   (4 * 2048)
+#define MAX_POPEN_BUFFER_SIZE   8192
 
 #define BW_20   20
 #define BW_40   40

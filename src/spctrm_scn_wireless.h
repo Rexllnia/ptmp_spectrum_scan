@@ -1,13 +1,11 @@
 /* spctrm_scn_wireless.h */
-#ifndef _COUNTRY_CHANNEL_H_
-#define _COUNTRY_CHANNEL_H_
+#ifndef _SPCTRM_SCN_WIRELESS_H_
+#define _SPCTRM_SCN_WIRELESS_H_
 
 #include <json-c/json.h>
 #include "lib_unifyframe.h"
 #include "spctrm_scn_config.h"
 #include "spctrm_scn_dev.h"
-
-#ifdef  BRIDGE_PLATFORM
 
 #define MAX_CHANNEL_NUM     200
 #define MAX(a, b) ((a) > (b) ? (a) : (b))
@@ -28,6 +26,5 @@ void *spctrm_scn_wireless_ap_scan_thread();
 void *spctrm_scn_wireless_cpe_scan_thread();
 int spctrm_scn_wireless_country_channel(int bw,uint64_t *bitmap_2G,uint64_t *bitmap_5G,int band);
 
-#endif /* BRIDGE_PLATFORM */
 #endif
 

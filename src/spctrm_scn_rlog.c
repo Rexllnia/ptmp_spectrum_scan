@@ -27,7 +27,7 @@ int spctrm_scn_rlog_module_set(const char *module)
     json_object *module_list_obj;
     json_object *module_list_elem_obj;
     FILE *fp;
-    char *rbuf;
+    const char *rbuf;
     
     if (module == NULL) {
         return;

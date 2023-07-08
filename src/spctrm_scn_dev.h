@@ -1,5 +1,5 @@
-#ifndef _DEVICE_LIST_H_
-#define _DEVICE_LIST_H_
+#ifndef _SPCTRM_SCN_DEV_H_
+#define _SPCTRM_SCN_DEV_H_
 
 #include <stdio.h>
 #include <stdlib.h>
@@ -51,4 +51,5 @@ int spctrm_scn_dev_wds_list(struct device_list *device_list);
 void spctrm_scn_dev_reset_stat(struct device_list *list);
 int spctrm_scn_dev_list_cmp(struct device_list *src_list,struct device_list *dest_list);
 struct device_info *spctrm_scn_dev_find_ap2(struct device_list *device_list);
+
 #endif

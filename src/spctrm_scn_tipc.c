@@ -1,11 +1,5 @@
 
 #include "spctrm_scn_tipc.h"
-#include "spctrm_scn_config.h"
-#include "spctrm_scn_dev.h"
-#include <netinet/in.h>
-#include <stddef.h>
-#include <stdio.h>
-#include <unistd.h>
 
 static void server_type_scan_reply_cb(tipc_recv_packet_head_t *head,char *pkt);
 
@@ -39,7 +33,7 @@ int spctrm_scn_tipc_send_start_msg(struct device_list *list,int wait_sec)
         if (strcmp(p->role,"ap") != 0) {
             instant = spctrm_scn_common_mac_2_nodeadd(p->mac);
             debug("send to mac %x",p->mac);
-            spctrm_scn_tipc_send(instant,SERVER_TYPE_SCAN,sizeof(g_input),&g_input);
+            spctrm_scn_tipc_send(instant,SERVER_TYPE_SCAN,sizeof(g_input),(char *)&g_input);
 
         }	
     }
@@ -258,12 +252,12 @@ void *spctrm_scn_tipc_thread()
 
     sd = socket(AF_TIPC, SOCK_RDM, 0);
     if (sd < 0) {
-        return FAIL;
+        return NULL;
     }
 
     if (0 != bind(sd, (struct sockaddr *)&server_addr, sizeof(server_addr))) {
         debug("Server: failed to bind port name\n");
-        return FAIL;
+        return NULL;
     }
 
     while (1) {
@@ -296,17 +290,17 @@ void *spctrm_scn_tipc_thread()
             debug("g_channel_info_5g %d\r\n",g_channel_info_5g[0].floornoise);
             debug("g_status %d",g_status);
             if (g_status == SCAN_BUSY) {
-                spctrm_scn_tipc_send(head.instant,SERVER_TYPE_GET_REPLY,sizeof(realtime_channel_info_5g),realtime_channel_info_5g);
+                spctrm_scn_tipc_send(head.instant,SERVER_TYPE_GET_REPLY,sizeof(realtime_channel_info_5g),(char *)realtime_channel_info_5g);
             } else {
                 debug("g_channel_info_5g %d\r\n",g_channel_info_5g[0].floornoise);
-                spctrm_scn_tipc_send(head.instant,SERVER_TYPE_GET_REPLY,sizeof(g_channel_info_5g),g_channel_info_5g);
+                spctrm_scn_tipc_send(head.instant,SERVER_TYPE_GET_REPLY,sizeof(g_channel_info_5g),(char *)g_channel_info_5g);
             }
         } else if (head.type == SERVER_TYPE_GET_REPLY) {
             server_type_scan_reply_cb(&head,pkt); 
         } else if (head.type == SERVER_TYPE_AUTO_GET) {
             debug("AUTO GET");
             if (g_status == SCAN_IDLE) {
-                spctrm_scn_tipc_send(head.instant,SERVER_TYPE_GET_REPLY,sizeof(g_channel_info_5g),g_channel_info_5g);
+                spctrm_scn_tipc_send(head.instant,SERVER_TYPE_GET_REPLY,sizeof(g_channel_info_5g),(char *)g_channel_info_5g);
             }
         } else if (head.type == SERVER_TYPE_SCAN) {
             debug("SERVER_TYPE_SCAN");
@@ -337,7 +331,7 @@ clear:
 
     }
     close(sd);
-    return 0;
+    return NULL;
 }
 
 static void server_type_scan_reply_cb(tipc_recv_packet_head_t *head,char *pkt) 
