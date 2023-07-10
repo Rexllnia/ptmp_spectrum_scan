@@ -96,62 +96,6 @@ int spctrm_scn_tipc_send_auto_get_msg(struct device_list *dst_list,int wait_sec)
     return FAIL;
 }
 
-static int wait_for_server(__u32 name_type, __u32 name_instance, int wait)
-{
-	struct sockaddr_tipc topsrv;
-	struct tipc_subscr subscr;
-	struct tipc_event event;
-
-	
-	int sd = socket(AF_TIPC, SOCK_SEQPACKET, 0);
-
-	memset(&topsrv, 0, sizeof(topsrv));
-	topsrv.family = AF_TIPC;
-	topsrv.addrtype = TIPC_ADDR_NAME;
-	topsrv.addr.name.name.type = TIPC_TOP_SRV;
-	topsrv.addr.name.name.instance = TIPC_TOP_SRV;
-
-	/* Connect to topology server */
-
-	if (0 > connect(sd, (struct sockaddr *)&topsrv, sizeof(topsrv))) {
-		perror("Client: failed to connect to topology server");
-
-	}
-
-	subscr.seq.type = htonl(name_type);
-	subscr.seq.lower = htonl(name_instance);
-	subscr.seq.upper = htonl(name_instance);
-	subscr.timeout = htonl(wait);
-	subscr.filter = htonl(TIPC_SUB_SERVICE);
-
-	if (send(sd, &subscr, sizeof(subscr), 0) != sizeof(subscr)) {
-		perror("Client: failed to send subscription");
-
-		close(sd);
-		return FAIL;
-	}
-
-	/* Now wait for the subscription to fire */
-	if (recv(sd, &event, sizeof(event), 0) != sizeof(event)) {
-		perror("Client: failed to receive event");
-
-		close(sd);
-		return FAIL;
-	}
-
-
-	if (event.event != htonl(TIPC_PUBLISHED)) {
-		printf("Client: server {%d,%d} not published within %u [s]\n",
-		       name_type, name_instance, wait/1000);
-			
-		close(sd);
-		return FAIL;
-		
-	}
-	close(sd);
-    return SUCCESS;
-}
-
 int spctrm_scn_tipc_send(__u32 dst_instance,__u32 type,size_t payload_size,char *payload)
 {
     int sd;
@@ -167,10 +111,6 @@ int spctrm_scn_tipc_send(__u32 dst_instance,__u32 type,size_t payload_size,char 
     if (payload == NULL) {
         return FAIL;
     } 
-
-    if(wait_for_server(SERVER_TYPE, ntohl(dst_instance), 100) == FAIL) {
-        return FAIL;
-    }
     
     pkt_size = sizeof(tipc_recv_packet_head_t) + payload_size;
     pkt = (char*)malloc(pkt_size * sizeof(char));
