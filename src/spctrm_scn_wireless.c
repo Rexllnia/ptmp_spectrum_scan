@@ -1,12 +1,137 @@
 #include "spctrm_scn_wireless.h"
 
 
-
-
-void spctrm_scn_wireless_channel_scan() 
+void spctrm_scn_wireless_channel_scan(struct uloop_timeout *t) 
 {
+    struct spctrm_scn_ubus_set_request *hreq = container_of(t,struct spctrm_scn_ubus_set_request,timeout);
+    static int i;
 
+    if (i < hreq->scan_time) {
+        
+        spctrm_scn_wireless_get_channel_info(&hreq->device_info.bw20_channel_info[i],BAND_5G);
+        debug("channel %d",hreq->device_info.bw20_channel_info[i].channel);
+        debug("floornoise %d",hreq->device_info.bw20_channel_info[i].floornoise);
+        debug("utilization %d",hreq->device_info.bw20_channel_info[i].utilization);
+        hreq->timeout.cb = spctrm_scn_wireless_channel_scan; 
+        i++;
+    } else {
+        hreq->timeout.cb = spctrm_scn_wireless_scan_task;
+        i = 0;
+    }
+    uloop_timeout_set(&hreq->timeout,1000);
 }
+
+void spctrm_scn_wireless_scan_task(struct uloop_timeout *t) 
+{
+    struct spctrm_scn_ubus_set_request *hreq = container_of(t,struct spctrm_scn_ubus_set_request,timeout);
+    static int i;
+
+    debug("");
+    list_for_each_bitset(hreq->channel_bitmap,i) {
+        debug("Bit %d is set\n", i);
+        i++;
+        hreq->timeout.cb = spctrm_scn_wireless_channel_scan; 
+        uloop_timeout_set(&hreq->timeout,1000);
+        return;
+    }
+
+    i = 0;
+    free(hreq);
+}
+
+int spctrm_scn_wireless_get_channel_info(struct channel_info *info,int band) 
+{
+    char *rbuf;
+    char *p;
+    char cmd[POPEN_BUFFER_MAX_SIZE];
+
+    if (info == NULL) {
+         return FAIL;
+    }
+
+    if (band == BAND_5G) {
+#ifdef BRIDGE_PLATFORM
+        spctrm_scn_common_cmd("wlanconfig ra0 radio",&rbuf);
+#elif defined AP_PLATFORM
+        spctrm_scn_common_cmd("wlanconfig rax0 radio",&rbuf);
+#else 
+        return FAIL;
+#endif
+    } else if (band == BAND_2G) {
+        return FAIL;
+    } else {
+        return FAIL;
+    }
+    
+    
+    strtok(rbuf,"\n");
+
+    strtok(NULL,":");
+    p = strtok(NULL,"\n");
+    if (p == NULL) {
+        free(rbuf);
+        return FAIL;
+    }
+
+    info->channel=atoi(p);
+      
+    strtok(NULL,":");
+    p = strtok(NULL,"\n");
+    if (p == NULL) {
+        free(rbuf);
+        return FAIL;
+    }
+    info->floornoise=atoi(p);
+     
+    strtok(NULL,":");
+    p = strtok(NULL,"\n");
+    if (p == NULL) {
+        free(rbuf);
+        return FAIL;
+    }
+    info->utilization=atoi(p);
+     
+    strtok(NULL,"\n");
+    strtok(NULL,":");
+    p = strtok(NULL,"\n");
+    if (p == NULL) {
+        free(rbuf);
+        return FAIL;
+    }
+    info->bw = atoi(p);
+    
+    strtok(NULL,":");
+    p = strtok(NULL,"\n");
+    if (p == NULL) {
+        free(rbuf);
+        return FAIL;
+    }
+    info->obss_util=atoi(p);
+    
+    strtok(NULL,":");
+    p = strtok(NULL,"\n");
+    if (p == NULL) {
+        free(rbuf);
+        return FAIL;
+    }
+    info->tx_util=atoi(p);
+   
+    strtok(NULL,":");
+
+    p = strtok(NULL,"\n");
+    if (p == NULL) {
+        free(rbuf);
+        return FAIL;
+    }
+
+    info->rx_util=atoi(p);
+    
+    free(rbuf);
+
+    return SUCCESS;
+}
+
+
 
 inline int spctrm_scn_wireless_band_check(uint8_t band) 
 {

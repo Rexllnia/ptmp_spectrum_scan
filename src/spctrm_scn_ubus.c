@@ -12,10 +12,6 @@
  */
 
 #include "spctrm_scn_ubus.h"
-#include "spctrm_scn_config.h"
-#include "spctrm_scn_dev.h"
-#include <stdbool.h>
-#include <stdio.h>
 
 static int spctrm_scn_ubus_set(struct ubus_context *ctx, struct ubus_object *obj,
 		      struct ubus_request_data *req, const char *method,
@@ -23,7 +19,7 @@ static int spctrm_scn_ubus_set(struct ubus_context *ctx, struct ubus_object *obj
 static int spctrm_scn_ubus_get(struct ubus_context *ctx, struct ubus_object *obj,
 		      struct ubus_request_data *req, const char *method,
 		      struct blob_attr *msg);
-
+              
 struct spctrm_scn_ubus_get_request
 {
     struct ubus_request_data req;
@@ -32,15 +28,7 @@ struct spctrm_scn_ubus_get_request
     int idx;
     char data[];
 };
-struct spctrm_scn_ubus_set_request
-{
-    struct ubus_request_data req;
-    struct uloop_timeout timeout;
-    uint64_t channel_bitmap;
-    int fd;
-    int idx;
-    char data[];
-};
+
 
 struct ubus_connect_ctx *ctx;
 struct device_list g_device_list;
@@ -64,21 +52,7 @@ static struct ubus_object spctrm_scn_object = {
     .n_methods = ARRAY_SIZE(spctrm_scn_methods),
 };
 
-static void spctrm_scn_wireless_scan_task(struct uloop_timeout *t) 
-{
-    struct spctrm_scn_ubus_set_request *hreq = container_of(t,struct spctrm_scn_ubus_set_request,timeout);
-    static int i;
 
-    debug("");
-    list_for_each_bitset(hreq->channel_bitmap,i) {
-        debug("Bit %d is set\n", i);
-        i++;
-        uloop_timeout_set(&hreq->timeout,1000);
-        return;
-    }
-       
-
-}
 /* ubus call spctrm_scn set '{"band":5}' */
 static void spctrm_scn_ubus_set_reply(struct uloop_timeout *t) 
 { 
@@ -138,7 +112,6 @@ static int spctrm_scn_ubus_set(struct ubus_context *ctx, struct ubus_object *obj
         
     } else {
 
-                
     }
 
     len = sizeof(struct spctrm_scn_ubus_set_request);
@@ -147,15 +120,20 @@ static int spctrm_scn_ubus_set(struct ubus_context *ctx, struct ubus_object *obj
         return UBUS_STATUS_UNKNOWN_ERROR;
     }
 
+    if (spctrm_scn_dev_wds_list(&g_device_list) == FAIL) {
+        free(hreq);
+        return UBUS_STATUS_UNKNOWN_ERROR;
+    }
+
+    hreq->scan_time = 3;
     hreq->channel_bitmap = country_channel_bitmap;
     debug("input->channel_bitmap %lld",hreq->channel_bitmap);
+    
+    
     ubus_defer_request(ctx,req,&hreq->req);
-
-
+    memcpy(&hreq->device_info,spctrm_scn_dev_find_ap(&g_device_list),sizeof(struct device_info));
     hreq->timeout.cb = spctrm_scn_ubus_set_reply;
     uloop_timeout_set(&hreq->timeout,1000);
-    
-
     
 error:
     return UBUS_STATUS_OK;

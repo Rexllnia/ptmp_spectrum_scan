@@ -30,6 +30,9 @@
 #define FAIL       -1
 #define SUCCESS    0
 
+#define BRIDGE_PLATFORM
+
+#define MAX_DEVICE_NUM 5
 #define BAND_5G_MAX_CHANNEL_NUM 36
 
 #define BAND_5G     5

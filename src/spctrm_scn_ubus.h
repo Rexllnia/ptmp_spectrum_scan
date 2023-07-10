@@ -22,6 +22,18 @@ enum {
     __SCAN_MAX
 };
 
+struct spctrm_scn_ubus_set_request
+{
+    struct ubus_request_data req;
+    struct uloop_timeout timeout;
+    uint64_t channel_bitmap;
+    uint8_t scan_time;
+    struct device_info device_info;
+    int fd;
+    int idx;
+    char data[];
+};
+
 void spctrm_scn_ubus_task(void);
 void spctrm_scn_ubus_close();
 #endif

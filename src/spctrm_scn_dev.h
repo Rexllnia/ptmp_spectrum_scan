@@ -44,6 +44,7 @@ dev_list : type device_list
 #define list_for_each_device(p,i,dev_list) \
     for ((p) = (dev_list)->device,i = 0;i < (dev_list)->list_len;p++,i++)
 
+int spctrm_scn_dev_wds_list(struct device_list *device_list);
 int spctrm_scn_dev_chk_stat(struct device_list *device_list);
 int spctrm_scn_dev_find_by_sn(struct device_list *device_list,char *series_no);
 void spctrm_scn_dev_reset_stat(struct device_list *list);
