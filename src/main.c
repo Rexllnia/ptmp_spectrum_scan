@@ -33,34 +33,24 @@
 #include "lib_unifyframe.h"
 #include "spctrm_scn_config.h"
 #include "spctrm_scn_rlog.h"
-#define PLATFORM_5G_ENABLE
-#define BRIDGE_PLATFORM
 
-extern unsigned char g_mode;
-extern struct device_list g_finished_device_list;
-extern struct device_list g_device_list;
-struct channel_info g_channel_info_5g[MAX_BAND_5G_CHANNEL_NUM];
-struct channel_info realtime_channel_info_5g[MAX_BAND_5G_CHANNEL_NUM];
-extern struct user_input g_input;
-volatile int g_status,g_scan_time;
-volatile long g_scan_timestamp;
-extern long g_bitmap_2G,g_bitmap_5G;
 
-static struct ubus_context *ctx;
+
+
 
 static void server_main(void)
 {
     int ret;
-    if (g_status == AP_MODE) {
+    if (g_mode == AP_MODE) {
 
-    } else if (g_status == CPE_MODE) {
+    } else if (g_mode == CPE_MODE) {
 
     }
-    debug("");
+
     spctrm_scn_ubus_task();
-    debug("");
-    // spctrm_scn_tipc_task();
-    debug("");
+
+    spctrm_scn_tipc_task();
+
     uloop_run();
 }
 
@@ -68,13 +58,22 @@ int main(int argc, char **argv)
 {
     int ret;
 
+    FILE *fp;
+    spctrm_scn_common_cmd("mkdir /tmp/spectrum_scan",NULL);
+    fp = fopen("/tmp/spectrum_scan/curl_pid","w+");
+    if (fp == NULL) {
+        return 0;
+    }
+
+    fprintf(fp,"%d",getpid());
+    fclose(fp);
 
 
     uloop_init();
     server_main();
 
     debug("done");
-    // tipc_close();
+    tipc_close();
     spctrm_scn_ubus_close();
     uloop_done();
 

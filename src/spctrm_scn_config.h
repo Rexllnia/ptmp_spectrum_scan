@@ -8,18 +8,13 @@
 
 #define MIN_SCAN_TIME 15 
 #define MAX_SCAN_TIME 60
-#define ONE_BYTE 8
 #define EXPIRE_TIME 14
 
 #define POPEN_CMD_ENABLE
-#define BRIDGE_PLATFORM
-#define UDP_FUNCTION
-
-#define P2P
 
 #define ETH_ALEN 6
 
-#define MAX_POPEN_BUFFER_SIZE   8192
+#define POPEN_BUFFER_MAX_SIZE   8192
 
 #define BW_20 20
 #define BW_40 40
@@ -30,19 +25,19 @@
 #define SCAN_IDLE       2
 #define SCAN_NOT_START  0
 #define SCAN_TIMEOUT  	3
+#define SCAN_ERROR  	-1
 
 #define FAIL       -1
 #define SUCCESS    0
 
-#define MAX_BAND_5G_CHANNEL_NUM 36
+#define BAND_5G_MAX_CHANNEL_NUM 36
 
-#define PLATFORM_5G     5
-#define PLATFORM_2G     2
-#define PLATFORM_BOTH   0
+#define BAND_5G     5
+#define BAND_2G     2
 
 #define AP_MODE  0
 #define CPE_MODE 1
-unsigned char g_mode;
+uint8_t g_mode;
 
 #define debug(...)  do {\
                     printf("file : %s line: %d func: %s -->",__FILE__,__LINE__,__func__); \
@@ -50,25 +45,24 @@ unsigned char g_mode;
                     printf("\r\n"); \
 } while(0)
 
-struct user_input {
+struct param_input {
     uint64_t channel_bitmap;
-    int band;
-    int channel_num;
-    int scan_time;
+    uint8_t band;
+    uint8_t channel_num;
+    uint8_t scan_time;
+    struct uloop_timeout timeout;
 };
 
 struct channel_info {
-    int channel;
-    int floornoise;
-    int utilization;
-    int bw;
-    int obss_util;
-    int tx_util;
-    int rx_util;
+    uint8_t channel;
+    uint8_t floornoise;
+    uint8_t utilization;
+    uint8_t bw;
+    uint8_t obss_util;
+    uint8_t tx_util;
+    uint8_t rx_util;
     double score;
     double rate;
 };
-
-
 
 #endif

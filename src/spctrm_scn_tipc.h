@@ -34,10 +34,6 @@ typedef struct tipc_recv_packet_head {
     unsigned int instant;
 }tipc_recv_packet_head_t;
 
-int spctrm_scn_tipc_send_get_msg(struct device_list *dst_list,int wait_sec);
-int spctrm_scn_tipc_send_start_msg(struct device_list *list,int wait_sec) ;
-int spctrm_scn_tipc_send_auto_get_msg(struct device_list *dst_list,int wait_sec) ;
-int spctrm_scn_tipc_send(__u32 dst_instance,__u32 type,size_t payload_size,char *payload);
-void *spctrm_scn_tipc_thread();
+void spctrm_scn_tipc_task();
 void tipc_close();
 #endif

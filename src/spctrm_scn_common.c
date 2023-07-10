@@ -63,14 +63,14 @@ int spctrm_scn_common_cmd(char *cmd,char **rbuf)
         pclose(fp);
         return SUCCESS;
     }
-    *rbuf =(char *) malloc(MAX_POPEN_BUFFER_SIZE);
+    *rbuf =(char *) malloc(POPEN_BUFFER_MAX_SIZE);
     if (rbuf == NULL) {
         pclose(fp);
         return FAIL;
     }
     
     
-    fread(*rbuf,sizeof(char),MAX_POPEN_BUFFER_SIZE,fp);
+    fread(*rbuf,sizeof(char),POPEN_BUFFER_MAX_SIZE,fp);
     pclose(fp);
     return SUCCESS;
 }

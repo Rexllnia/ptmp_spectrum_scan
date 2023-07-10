@@ -16,19 +16,18 @@
 #include "spctrm_scn_config.h"
 #include "spctrm_scn_tipc.h"
 
-#define ROLE_STRING_LEN 4
+#define ROLE_STR_LEN 4
 #define FINISHED 	1
 #define NOT_FINISH	0
 
 struct device_info {
     char series_no[SN_LEN];
     unsigned char mac[20];
-    char role[ROLE_STRING_LEN];
+    char role[ROLE_STR_LEN];
     int status;
-    struct user_input input;
-    struct channel_info channel_info[36];
-    struct channel_info bw40_channel[18];
-    struct channel_info bw80_channel[9];
+    struct channel_info bw20_channel_info[36];
+    struct channel_info bw40_channel_info[18];
+    struct channel_info bw80_channel_info[9];
     unsigned char finished_flag;
     time_t timestamp;
 };
@@ -49,5 +48,5 @@ int spctrm_scn_dev_chk_stat(struct device_list *device_list);
 int spctrm_scn_dev_find_by_sn(struct device_list *device_list,char *series_no);
 void spctrm_scn_dev_reset_stat(struct device_list *list);
 int spctrm_scn_dev_list_cmp(struct device_list *src_list,struct device_list *dest_list);
-struct device_info *spctrm_scn_dev_find_ap2(struct device_list *device_list);
+struct device_info *spctrm_scn_dev_find_ap(struct device_list *device_list);
 #endif
