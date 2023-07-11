@@ -430,7 +430,7 @@ int spctrm_scn_wireless_channel_info(struct channel_info *info,int band)
 
     if (band == PLATFORM_5G) {
 #ifdef BRIDGE_PLATFORM
-        spctrm_scn_common_cmd("wlanconfig ra0 radio",&rbuf);
+        spctrm_scn_common_cmd("wlanconfig rai0 radio",&rbuf);
 #elif defined AP_PLATFORM
         spctrm_scn_common_cmd("wlanconfig rax0 radio",&rbuf);
 #else 
@@ -745,7 +745,7 @@ int spctrm_scn_wireless_change_channel(int channel)
     }
     sleep(1);
     // sprintf(cmd,"dev_config update -m radio '{ \"radioList\": [ { \"radioIndex\": \"1\", \"type\":\"5G\", \"channel\":\"%d\" } ]}'",channel);
-    sprintf(cmd,"iwpriv ra0 set channel=%d",channel);
+    sprintf(cmd,"iwpriv rai0 set channel=%d",channel);
     sleep(4);
     spctrm_scn_common_cmd(cmd,NULL);
     
