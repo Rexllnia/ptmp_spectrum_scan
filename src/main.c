@@ -65,9 +65,6 @@ int main(int argc, char **argv)
     pthread_mutex_init(&g_mutex, NULL);
     pthread_mutex_init(&g_scan_schedule_mutex,NULL);
     pthread_mutex_init(&g_finished_device_list_mutex,NULL);
-    
-    // spctrm_scn_rlog_module_set("spectrum_scan");
-    // spctrm_scn_rlog_module_enable("spectrum_scan");
 
     spctrm_scn_common_cmd("mkdir /tmp/spectrum_scan",NULL);
     fp = fopen("/tmp/spectrum_scan/curl_pid","w+");

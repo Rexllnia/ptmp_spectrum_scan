@@ -319,7 +319,6 @@ static void add_avg_score_list_blobmsg(struct blob_buf *buf,struct device_list *
             channel_avg_rate[j] +=  p->channel_info[j].rate;
             debug("score  %f", p->channel_info[j].score);
         }
-        debug("channel %d", p->channel_info[j].channel);
         debug("ans  %f", channel_avg_score[j]);
         channel_avg_score[j] /= (list->list_len);
         channel_avg_rate[j] /= (list->list_len);
@@ -339,8 +338,9 @@ static void add_avg_score_list_blobmsg(struct blob_buf *buf,struct device_list *
         blobmsg_close_table(buf,avg_score_elem_obj);
         avg_score_elem_obj = NULL;
     }
+    debug("");
     blobmsg_close_array(buf,bw20_list_obj);
-
+    debug("");
     bw40_list_obj = blobmsg_open_array(buf,"bw40");
     memset(channel_avg_score,0,sizeof(channel_avg_score));
     memset(channel_avg_rate,0,sizeof(channel_avg_rate));
@@ -521,11 +521,11 @@ static void add_bw80_best_channel_blobmsg(struct blob_buf *buf, struct device_li
     debug("best_channel_ptr %d", best_channel_ptr);
     sprintf(temp, "%f", channel_avg_score[best_channel_ptr]);
     blobmsg_add_string(buf, "score", temp);
-
+    debug("");
     p = spctrm_scn_dev_find_ap2(list);
-    memset(temp,0,sizeof(temp));
+    debug("");
     sprintf(temp, "%d",p->bw80_channel[best_channel_ptr].channel);
-
+    debug("");
     blobmsg_add_string(buf, "channel", temp);
 
     blobmsg_close_table(buf, bw80_table);
@@ -586,15 +586,17 @@ static void get_reply(struct uloop_timeout *t)
     debug("");
     blobmsg_close_array(&buf, scan_list_obj);
 
-    /* avg score channel list*/
-    add_avg_score_list_blobmsg(&buf,&g_finished_device_list);
     /* best channel*/
     best_channel_obj = blobmsg_open_table(&buf, "best_channel");
     debug("");
     add_bw20_best_channel_blobmsg(&buf, &g_finished_device_list);
     add_bw40_best_channel_blobmsg(&buf, &g_finished_device_list);
     add_bw80_best_channel_blobmsg(&buf, &g_finished_device_list);
+    debug("");
     blobmsg_close_table(&buf, best_channel_obj);
+
+    /* avg score channel list*/
+    add_avg_score_list_blobmsg(&buf,&g_finished_device_list);
     ubus_send_reply(ctx, &req->req, buf.head);
 
     ubus_complete_deferred_request(ctx, &req->req, 0);
