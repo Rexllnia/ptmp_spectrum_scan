@@ -11,6 +11,70 @@ struct uloop_fd c_fd;
 struct sockaddr_tipc server_addr;
 struct sockaddr_tipc client_addr;
 
+
+int spctrm_scn_tipc_send(__u32 dst_instance,__u32 type,size_t payload_size,char *payload)
+{
+    int sd;
+    struct sockaddr_tipc server_addr;
+    struct timeval timeout={4,0};
+    __u32 src_instant = 0;
+    char mac[20];
+    char *pkt;
+    tipc_recv_packet_head_t *head;
+    size_t pkt_size;
+    int j;
+    
+    if (payload == NULL) {
+        return FAIL;
+    } 
+    
+    pkt_size = sizeof(tipc_recv_packet_head_t) + payload_size;
+    pkt = (char*)malloc(pkt_size * sizeof(char));
+    if (pkt == NULL) {
+        debug("FAIL");
+        return FAIL;
+    }
+    memset(mac,0,sizeof(mac));
+    spctrm_scn_common_read_file("/proc/rg_sys/sys_mac",mac,sizeof(mac) - 1);
+    src_instant = spctrm_scn_common_mac_2_nodeadd(mac);
+
+    memcpy(pkt+sizeof(tipc_recv_packet_head_t),payload,payload_size);
+    head = (tipc_recv_packet_head_t *)pkt;
+    
+
+    head->instant = src_instant;
+    head->type = type;
+    head->payload_size = payload_size;
+
+
+    sd = socket(AF_TIPC, SOCK_RDM, 0);
+    if (sd < 0) {
+        debug("FAIL");
+        free(pkt);
+        return FAIL;
+    }
+    server_addr.family = AF_TIPC;
+    server_addr.addrtype = TIPC_ADDR_NAME;
+    server_addr.addr.name.name.type = SERVER_TYPE;
+    server_addr.addr.name.name.instance = ntohl(dst_instance);
+    server_addr.addr.name.domain = 0;
+    
+    setsockopt(sd,SOL_SOCKET,SO_SNDTIMEO,(char*)&timeout,sizeof(struct timeval));
+    if (0 > sendto(sd, pkt, pkt_size, 0,
+                    (struct sockaddr*)&server_addr, sizeof(server_addr))) {
+        perror("Client: failed to send");
+        free(pkt);
+        close(sd);
+        return FAIL;
+    }
+
+    free(pkt);
+    close(sd);
+
+    return SUCCESS;
+
+}
+
 void spctrm_scn_tipc_recv_cb(struct uloop_fd *sock, unsigned int events) {
 	tipc_recv_packet_head_t head;
 	size_t pkt_size;

@@ -165,11 +165,14 @@ struct device_info *spctrm_scn_dev_find_ap(struct device_list *device_list)
     int i;
 
     if (device_list == NULL) {
+        debug("");
         return NULL;
     }
 
     list_for_each_device(p,i,device_list) {
+        debug("");
         if (strcmp(device_list->device[i].role,"ap") == 0) {
+            debug("");
             return p;
         }
     }

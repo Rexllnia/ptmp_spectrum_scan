@@ -2,8 +2,6 @@
 
 extern int8_t g_status;
 
-static inline int bitset_to_channel (int bit_set,uint8_t *channel);
-
 void spctrm_scn_wireless_channel_scan(struct uloop_timeout *t) 
 {
     struct spctrm_scn_ubus_set_request *hreq = container_of(t,struct spctrm_scn_ubus_set_request,timeout);
@@ -47,6 +45,9 @@ void spctrm_scn_wireless_scan_task(struct uloop_timeout *t)
         return;
     }
 
+    hreq->timeout.cb = spctrm_scn_wireless_channel_scan;
+    uloop_timeout_set(&hreq->timeout,1000);
+
     g_status = SCAN_IDLE;
     i = 0;
     free(hreq);
@@ -60,7 +61,7 @@ fail:
 int spctrm_scn_wireless_change_channel(int channel) 
 {
     char cmd[POPEN_BUFFER_MAX_SIZE];
-    if (spctrm_scn_wireless_channel_check(channel) == FAIL) {
+    if (spctrm_scn_wireless_check_channel(channel) == FAIL) {
         debug("param error");
         return FAIL;
     }
@@ -181,7 +182,7 @@ inline int spctrm_scn_wireless_band_check(uint8_t band)
     return SUCCESS;
 }
 
-inline int spctrm_scn_wireless_channel_check(int channel)
+inline int spctrm_scn_wireless_check_channel(int channel)
 {
     if (channel < 36 || channel > 181) {
         return FAIL;
@@ -215,7 +216,7 @@ int spctrm_scn_wireless_channel_score(struct device_list *list)
 }
 
 
-static inline int channel_to_bitset (int channel,uint8_t *bitset)
+inline int channel_to_bitset(int channel,uint8_t *bitset)
 {
     if (bitset == NULL) {
         return FAIL;
@@ -233,7 +234,7 @@ static inline int channel_to_bitset (int channel,uint8_t *bitset)
     
     
 }
-static inline int bitset_to_channel (int bit_set,uint8_t *channel)
+inline int bitset_to_channel(int bit_set,uint8_t *channel)
 {
     if (channel == NULL) {
         return FAIL;
@@ -249,6 +250,39 @@ static inline int bitset_to_channel (int bit_set,uint8_t *channel)
 
     return SUCCESS;
     
+}
+int spctrm_scn_wireless_get_wds_state(uint8_t *mode) 
+{
+    char *rbuf;
+	json_object *rbuf_root;
+    json_object *role_obj;
+
+    if (spctrm_scn_common_cmd("dev_sta get -m wds_status", &rbuf) == FAIL) {
+        debug("cmd fail");
+        return FAIL;
+    }
+    rbuf_root = json_tokener_parse(rbuf);
+    if (rbuf_root == NULL) {
+        free(rbuf);
+        return FAIL;
+    }
+
+    role_obj = json_object_object_get(rbuf_root,"role");
+    if (role_obj == NULL) {
+        free(rbuf);
+        json_object_put(rbuf_root);
+        return FAIL;
+    }
+
+    if (strcmp(json_object_get_string(role_obj),"cpe") == 0) {
+        *mode = CPE_MODE;
+    } else if (strcmp(json_object_get_string(role_obj),"ap") == 0) {
+        *mode = AP_MODE;
+    }
+
+    free(rbuf);
+    json_object_put(rbuf_root);
+    debug("g_mode %d",*mode);
 }
 
 int spctrm_scn_wireless_country_channel(uint64_t *channel_bitmap,uint8_t *channel_num,uint8_t bw,uint8_t band)

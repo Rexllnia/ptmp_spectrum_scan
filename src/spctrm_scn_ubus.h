@@ -2,6 +2,9 @@
 #ifndef _SPCTRM_SCN_UBUS_H_
 #define _SPCTRM_SCN_UBUS_H_
 
+/* ubus call spctrm_scn set '{"band":5}' */
+/* ubus call spctrm_scn set '{"band":5,"channel_list":[36,40,44,48]}' */
+
 #include <unistd.h>
 #include <signal.h>
 #include <semaphore.h>
@@ -27,6 +30,7 @@ struct spctrm_scn_ubus_set_request
     struct ubus_request_data req;
     struct uloop_timeout timeout;
     uint64_t channel_bitmap;
+    uint32_t channel_num;
     uint8_t scan_time;
     struct device_info device_info;
     int fd;

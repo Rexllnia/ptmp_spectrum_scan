@@ -29,7 +29,6 @@ struct spctrm_scn_ubus_get_request
     char data[];
 };
 
-
 struct ubus_connect_ctx *ctx;
 struct device_list g_device_list;
 int8_t g_status;
@@ -53,8 +52,6 @@ static struct ubus_object spctrm_scn_object = {
     .n_methods = ARRAY_SIZE(spctrm_scn_methods),
 };
 
-
-/* ubus call spctrm_scn set '{"band":5}' */
 static void spctrm_scn_ubus_set_reply(struct uloop_timeout *t) 
 { 
     struct spctrm_scn_ubus_set_request *hreq = container_of(t,struct spctrm_scn_ubus_set_request,timeout);
@@ -77,7 +74,8 @@ static int spctrm_scn_ubus_set(struct ubus_context *ctx, struct ubus_object *obj
     static struct blobmsg_policy channel_list_policy[MAX_CHANNEL_NUM];
     int i;
     uint64_t band_5g_channel_bitmap,country_channel_bitmap;
-    uint8_t band,channel_num;
+    uint8_t band,channel_num,channel,bitset;
+    struct device_info *p;
 
     for (i = 0; i < MAX_CHANNEL_NUM; i++) {
         channel_list_policy[i].type = BLOBMSG_TYPE_INT32;
@@ -107,37 +105,71 @@ static int spctrm_scn_ubus_set(struct ubus_context *ctx, struct ubus_object *obj
         goto error;
     }
 
-    if (tb[CHANNEL_LIST]) {
-        
-    } else {
-
-    }
-
     len = sizeof(struct spctrm_scn_ubus_set_request);
 	hreq = calloc(1, len);
     if (hreq == NULL) {
         return UBUS_STATUS_UNKNOWN_ERROR;
     }
 
+    if (tb[CHANNEL_LIST]) {
+        /* custom channel list */
+        channel_num = blobmsg_check_array(tb[CHANNEL_LIST], BLOBMSG_TYPE_INT32);
+        hreq->channel_bitmap = 0;
+        blobmsg_parse_array(channel_list_policy, ARRAY_SIZE(channel_list_policy), channel_list_array, blobmsg_data(tb[CHANNEL_LIST]), blobmsg_len(tb[CHANNEL_LIST]));
+        for (i = 0;i < channel_num;i++) {
+            channel = blobmsg_get_u32(channel_list_array[i]);
+
+            if (spctrm_scn_wireless_check_channel(channel) == FAIL) {
+                free(hreq);
+                goto error;
+            }
+
+            if (channel_to_bitset(channel,&bitset) == FAIL) {
+                free(hreq);
+                goto error;
+            }
+            debug("bitset %d",bitset);
+
+            BITMAP_SET(hreq->channel_bitmap,bitset);
+            
+        }
+        debug("hreq->channel_bitmap %lld",hreq->channel_bitmap);
+    } else {
+        /* default */
+        hreq->channel_bitmap = country_channel_bitmap;
+        debug("hreq->channel_bitmap %lld",hreq->channel_bitmap);
+    }
+    debug("");
+    if (tb[SCAN_TIME]) {
+        hreq->scan_time = blobmsg_get_u32(tb[SCAN_TIME]);
+    } else {
+        /* default */
+        hreq->scan_time = 3;
+    }
+
     if (spctrm_scn_dev_wds_list(&g_device_list) == FAIL) {
         free(hreq);
         return UBUS_STATUS_UNKNOWN_ERROR;
     }
+    p = spctrm_scn_dev_find_ap(&g_device_list);
 
-    hreq->scan_time = 3;
-    hreq->channel_bitmap = country_channel_bitmap;
-    debug("input->channel_bitmap %lld",hreq->channel_bitmap);
+    if (p == NULL) {
+        free(hreq);
+        return UBUS_STATUS_UNKNOWN_ERROR;
+    }
     
+    memcpy(&hreq->device_info,p,sizeof(struct device_info));
+    debug("");
     ubus_defer_request(ctx,req,&hreq->req);
-    memcpy(&hreq->device_info,spctrm_scn_dev_find_ap(&g_device_list),sizeof(struct device_info));
 
+    debug("");
     g_status = SCAN_BUSY;
     hreq->timeout.cb = spctrm_scn_ubus_set_reply;
+    debug("");
     uloop_timeout_set(&hreq->timeout,1000);
     
 error:
     return UBUS_STATUS_OK;
-
 }
 static void spctrm_scn_ubus_get_reply(struct uloop_timeout *t) {
     struct spctrm_scn_ubus_get_request *hreq = container_of(t,struct spctrm_scn_ubus_get_request,timeout);

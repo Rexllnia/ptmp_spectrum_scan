@@ -57,12 +57,19 @@ static void server_main(void)
 int main(int argc, char **argv)
 {
     int ret;
-
     FILE *fp;
-    spctrm_scn_common_cmd("mkdir /tmp/spectrum_scan",NULL);
+
+    if (spctrm_scn_wireless_get_wds_state(&g_mode) == FAIL) {
+        return FAIL;
+    }
+
+    if (spctrm_scn_common_cmd("mkdir /tmp/spectrum_scan",NULL) == FAIL) {
+        return FAIL;
+    }
+
     fp = fopen("/tmp/spectrum_scan/curl_pid","w+");
     if (fp == NULL) {
-        return 0;
+        return FAIL;
     }
 
     fprintf(fp,"%d",getpid());
