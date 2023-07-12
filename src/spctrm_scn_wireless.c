@@ -1,5 +1,8 @@
 #include "spctrm_scn_wireless.h"
 
+extern int8_t g_status;
+
+static inline int bitset_to_channel (int bit_set,uint8_t *channel);
 
 void spctrm_scn_wireless_channel_scan(struct uloop_timeout *t) 
 {
@@ -7,7 +10,6 @@ void spctrm_scn_wireless_channel_scan(struct uloop_timeout *t)
     static int i;
 
     if (i < hreq->scan_time) {
-        
         spctrm_scn_wireless_get_channel_info(&hreq->device_info.bw20_channel_info[i],BAND_5G);
         debug("channel %d",hreq->device_info.bw20_channel_info[i].channel);
         debug("floornoise %d",hreq->device_info.bw20_channel_info[i].floornoise);
@@ -25,20 +27,50 @@ void spctrm_scn_wireless_scan_task(struct uloop_timeout *t)
 {
     struct spctrm_scn_ubus_set_request *hreq = container_of(t,struct spctrm_scn_ubus_set_request,timeout);
     static int i;
+    uint8_t channel;
 
     debug("");
     list_for_each_bitset(hreq->channel_bitmap,i) {
         debug("Bit %d is set\n", i);
+        if (bitset_to_channel(i,&channel) == FAIL) {
+            debug("error");
+            goto fail;
+        }
+        debug("channel %d",channel);
+        if (spctrm_scn_wireless_change_channel(channel) == FAIL) {
+            debug("error");
+            goto fail;
+        }
         i++;
         hreq->timeout.cb = spctrm_scn_wireless_channel_scan; 
         uloop_timeout_set(&hreq->timeout,1000);
         return;
     }
 
+    g_status = SCAN_IDLE;
     i = 0;
     free(hreq);
+    return;
+fail:
+    g_status = SCAN_ERROR;
+    i = 0;
+    free(hreq);
+    return;
 }
-
+int spctrm_scn_wireless_change_channel(int channel) 
+{
+    char cmd[POPEN_BUFFER_MAX_SIZE];
+    if (spctrm_scn_wireless_channel_check(channel) == FAIL) {
+        debug("param error");
+        return FAIL;
+    }
+    sprintf(cmd,"iwpriv ra0 set channel=%d",channel);
+    if (spctrm_scn_common_cmd(cmd,NULL) == FAIL) {
+        return FAIL;
+    }
+    
+    return SUCCESS;
+}
 int spctrm_scn_wireless_get_channel_info(struct channel_info *info,int band) 
 {
     char *rbuf;
@@ -46,7 +78,8 @@ int spctrm_scn_wireless_get_channel_info(struct channel_info *info,int band)
     char cmd[POPEN_BUFFER_MAX_SIZE];
 
     if (info == NULL) {
-         return FAIL;
+        debug("FAIL");
+        return FAIL;
     }
 
     if (band == BAND_5G) {
@@ -63,13 +96,14 @@ int spctrm_scn_wireless_get_channel_info(struct channel_info *info,int band)
         return FAIL;
     }
     
-    
+    debug("start");
     strtok(rbuf,"\n");
 
     strtok(NULL,":");
     p = strtok(NULL,"\n");
     if (p == NULL) {
         free(rbuf);
+        debug("FAIL");
         return FAIL;
     }
 
@@ -79,26 +113,30 @@ int spctrm_scn_wireless_get_channel_info(struct channel_info *info,int band)
     p = strtok(NULL,"\n");
     if (p == NULL) {
         free(rbuf);
+        debug("FAIL");
         return FAIL;
     }
     info->floornoise=atoi(p);
-     
+    debug("info->floornoise %d",info->floornoise);
     strtok(NULL,":");
     p = strtok(NULL,"\n");
     if (p == NULL) {
+        debug("FAIL");
         free(rbuf);
         return FAIL;
     }
     info->utilization=atoi(p);
-     
+    debug("info->utilization %d",info->utilization);
     strtok(NULL,"\n");
     strtok(NULL,":");
     p = strtok(NULL,"\n");
     if (p == NULL) {
         free(rbuf);
+        debug("FAIL");
         return FAIL;
     }
     info->bw = atoi(p);
+    debug("info->bw %d",info->bw);
     
     strtok(NULL,":");
     p = strtok(NULL,"\n");
@@ -107,7 +145,7 @@ int spctrm_scn_wireless_get_channel_info(struct channel_info *info,int band)
         return FAIL;
     }
     info->obss_util=atoi(p);
-    
+    debug("info->obss_util %d",info->obss_util);
     strtok(NULL,":");
     p = strtok(NULL,"\n");
     if (p == NULL) {
@@ -115,7 +153,7 @@ int spctrm_scn_wireless_get_channel_info(struct channel_info *info,int band)
         return FAIL;
     }
     info->tx_util=atoi(p);
-   
+    debug("info->tx_util %d",info->tx_util);
     strtok(NULL,":");
 
     p = strtok(NULL,"\n");
@@ -125,6 +163,7 @@ int spctrm_scn_wireless_get_channel_info(struct channel_info *info,int band)
     }
 
     info->rx_util=atoi(p);
+    debug("info->rx_util %d",info->rx_util);
     
     free(rbuf);
 

@@ -58,7 +58,7 @@ struct param_input {
 
 struct channel_info {
     uint8_t channel;
-    uint8_t floornoise;
+    int8_t floornoise;
     uint8_t utilization;
     uint8_t bw;
     uint8_t obss_util;

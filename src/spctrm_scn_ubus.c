@@ -32,6 +32,7 @@ struct spctrm_scn_ubus_get_request
 
 struct ubus_connect_ctx *ctx;
 struct device_list g_device_list;
+int8_t g_status;
 
 static const struct blobmsg_policy spctrm_scn_ubus_set_policy[] = {
     [BAND] = {.name = "band", .type = BLOBMSG_TYPE_INT32},
@@ -76,17 +77,15 @@ static int spctrm_scn_ubus_set(struct ubus_context *ctx, struct ubus_object *obj
     static struct blobmsg_policy channel_list_policy[MAX_CHANNEL_NUM];
     int i;
     uint64_t band_5g_channel_bitmap,country_channel_bitmap;
-    static uint8_t status;
     uint8_t band,channel_num;
 
     for (i = 0; i < MAX_CHANNEL_NUM; i++) {
         channel_list_policy[i].type = BLOBMSG_TYPE_INT32;
     }
-    status = SCAN_NOT_START;
 
     blobmsg_parse(spctrm_scn_ubus_set_policy, ARRAY_SIZE(spctrm_scn_ubus_set_policy), tb, blob_data(msg), blob_len(msg));
 
-    if (status == SCAN_BUSY) {
+    if (g_status == SCAN_BUSY) {
         goto error;
     }
 
@@ -129,9 +128,10 @@ static int spctrm_scn_ubus_set(struct ubus_context *ctx, struct ubus_object *obj
     hreq->channel_bitmap = country_channel_bitmap;
     debug("input->channel_bitmap %lld",hreq->channel_bitmap);
     
-    
     ubus_defer_request(ctx,req,&hreq->req);
     memcpy(&hreq->device_info,spctrm_scn_dev_find_ap(&g_device_list),sizeof(struct device_info));
+
+    g_status = SCAN_BUSY;
     hreq->timeout.cb = spctrm_scn_ubus_set_reply;
     uloop_timeout_set(&hreq->timeout,1000);
     
