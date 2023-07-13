@@ -125,11 +125,9 @@ int spctrm_scn_tipc_send(__u32 dst_instance,__u32 type,size_t payload_size,char 
     memcpy(pkt+sizeof(tipc_recv_packet_head_t),payload,payload_size);
     head = (tipc_recv_packet_head_t *)pkt;
     
-
     head->instant = src_instant;
     head->type = type;
     head->payload_size = payload_size;
-
 
     sd = socket(AF_TIPC, SOCK_RDM, 0);
     if (sd < 0) {
@@ -151,12 +149,9 @@ int spctrm_scn_tipc_send(__u32 dst_instance,__u32 type,size_t payload_size,char 
         close(sd);
         return FAIL;
     }
-
     free(pkt);
     close(sd);
-
     return SUCCESS;
-
 }
 
 void *spctrm_scn_tipc_thread()

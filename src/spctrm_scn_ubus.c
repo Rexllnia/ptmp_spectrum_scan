@@ -13,9 +13,6 @@
 
 #include "spctrm_scn_ubus.h"
 
-
-
-
 static int scan(struct ubus_context *ctx, struct ubus_object *obj,
 		      struct ubus_request_data *req, const char *method,
 		      struct blob_attr *msg);
@@ -41,6 +38,7 @@ extern pthread_mutex_t g_mutex,g_scan_schedule_mutex,g_finished_device_list_mute
 extern int g_scan_schedule;
 static struct ubus_context *ctx;
 static struct ubus_subscriber remove_event;
+static struct ubus_subscriber rlog_event;
 static struct blob_buf b;
 struct user_input g_input;
 
@@ -57,6 +55,7 @@ struct scan_request
     int idx;
     char data[];
 };
+
 struct get_request
 {
     struct ubus_request_data req;
@@ -73,6 +72,20 @@ struct realtime_get_request
     int idx;
     char data[];
 };
+static const struct blobmsg_policy rlog_notify_policy[] = {
+    [TOTAL] = {.name = "total", .type = BLOBMSG_TYPE_STRING},
+    [CONFIG] = {.name = "config", .type = BLOBMSG_TYPE_ARRAY},
+    [MODULE_DIR] = {.name = "module_dir", .type = BLOBMSG_TYPE_STRING},
+    [TMP_DIR] = {.name = "tmp_dir", .type = BLOBMSG_TYPE_STRING},
+    [TAR_DIR] = {.name = "tar_dir", .type = BLOBMSG_TYPE_STRING},
+};
+static const struct blobmsg_policy rlog_config_policy[] = {
+    [NAME] = {.name = "name", .type = BLOBMSG_TYPE_STRING},
+    [OPTION] = {.name = "option", .type = BLOBMSG_TYPE_STRING},
+    [OLD_VALUE] = {.name = "old_value", .type = BLOBMSG_TYPE_STRING},
+    [NEW_VALUE] = {.name = "new_value", .type = BLOBMSG_TYPE_STRING},
+};
+
 static const struct blobmsg_policy scan_policy[] = {
     [BAND] = {.name = "band", .type = BLOBMSG_TYPE_INT32},
     [CHANNEL_BITMAP] = {.name = "channel_bitmap", .type = BLOBMSG_TYPE_ARRAY},
@@ -93,6 +106,7 @@ static struct ubus_object channel_score_object = {
     .methods = channel_score_methods,
     .n_methods = ARRAY_SIZE(channel_score_methods),
 };
+static struct ubus_subscriber test_event;
 
 static void scan_reply(struct uloop_timeout *t)
 {
@@ -546,8 +560,6 @@ static void get_reply(struct uloop_timeout *t)
     debug("");
 
     blob_buf_init(&buf, 0);
-
-
     
     if (g_status == SCAN_TIMEOUT) {
         goto scan_timeout;
@@ -864,10 +876,51 @@ static int get(struct ubus_context *ctx, struct ubus_object *obj,
 
     return 0;
 }
+static void test_notify(struct ubus_context *ctx, struct ubus_object *obj,
+            struct ubus_request_data *req, const char *method,
+            struct blob_attr *msg)
+{
+    static struct blobmsg_policy *config_array_policy; 
+    struct blob_attr *tb[__RLOG_NOTIFY_MAX];
+    struct blob_attr *config_tb[__RLOG_CONFIG_MAX];
+    struct blob_attr *config_array[1024];
+    int i,total;
 
+    fprintf(stderr, "Received notification '%s'\n ", method);
+
+    blobmsg_parse(rlog_notify_policy, ARRAY_SIZE(rlog_notify_policy),tb, blob_data(msg), blob_len(msg));
+    total = atoi(blobmsg_get_string(tb[TOTAL]));
+    debug("%s",blobmsg_get_string(tb[MODULE_DIR]));
+    debug("%s",blobmsg_get_string(tb[TMP_DIR]));
+    debug("%s",blobmsg_get_string(tb[TAR_DIR]));
+    debug("total %d",total);
+    
+    config_array_policy = (struct blobmsg_policy*)malloc(total * sizeof(struct blobmsg_policy));
+    if (config_array_policy == NULL) {
+        return;
+    }
+
+    for (i = 0; i < total; i++) {
+        config_array_policy[i].type = BLOBMSG_TYPE_TABLE;
+    }
+    
+    blobmsg_parse_array(config_array_policy, ARRAY_SIZE(config_array_policy), config_array, blobmsg_data(tb[CONFIG]), blobmsg_len(tb[CONFIG]));
+    
+    for (i = 0 ;i < total;i++) {
+        blobmsg_parse(rlog_config_policy,ARRAY_SIZE(rlog_config_policy),config_tb,blobmsg_data(config_array[i]),blobmsg_len(config_array[i]));
+        debug("%s",blobmsg_get_string(config_tb[NAME]));
+        debug("%s",blobmsg_get_string(config_tb[OPTION]));
+        debug("%s",blobmsg_get_string(config_tb[OLD_VALUE]));
+    }
+    free(config_array_policy);
+    
+
+    return;
+}
 static void server_main(void)
 {
     int ret;
+    uint32_t id;
 
     ret = ubus_add_object(ctx, &channel_score_object);
     if (ret) {
@@ -875,12 +928,22 @@ static void server_main(void)
         return;
     }
     
-
-    // ret = ubus_register_subscriber(ctx, &remove_event);
-    // if (ret) {
-    //     fprintf(stderr, "Failed to add watch handler: %s\n", ubus_strerror(ret));
-    //     return;
-    // }
+    ret = ubus_register_subscriber(ctx, &test_event);
+    if (ret != UBUS_STATUS_OK) {
+        debug("error");
+        return;
+    }
+    test_event.cb = test_notify;
+    if (ubus_lookup_id(ctx, "rlog", &id)) {
+        fprintf(stderr, "Failed to look up test object\n");
+        debug("error");
+        return;
+    }
+    ret = ubus_subscribe(ctx, &test_event,id);
+    if (ret != UBUS_STATUS_OK) {
+        debug("error");
+        return;
+    }
 
     uloop_run();
 }

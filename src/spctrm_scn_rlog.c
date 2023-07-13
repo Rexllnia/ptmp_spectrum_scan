@@ -109,6 +109,43 @@ int spctrm_scn_rlog_module_enable(const char *module)
     sleep(1);
     return SUCCESS;
 }
+
+
+int spctrm_scn_rlog_module_info(const char *module) 
+{
+    const char *ubus_socket = NULL;
+    unsigned int id;
+    int ret;
+    int timeout = 30;
+    ctx = ubus_connect(ubus_socket);
+    
+    if (module == NULL) {
+        return;
+    }
+
+    if (!ctx) {
+        fprintf(stderr, "Failed to connect to ubus\n");
+        return FAIL;
+    }
+ 
+    blob_buf_init(&b, 0);
+ 
+    blobmsg_add_string(&b,"module",module);
+ 
+    ret = ubus_lookup_id(ctx, "rlog", &id);
+    if (ret != UBUS_STATUS_OK) {
+        debug("lookup rlog failed\n");
+        return FAIL;
+    } else {
+        debug("lookup rlog successs\n");
+    }
+    ubus_invoke(ctx, id, "module_enable", b.head, rlog_module_enable_cb, NULL, timeout * 1000);
+    ubus_free(ctx);
+
+    sleep(1);
+    return SUCCESS;
+}
+
 static void rlog_upload_stream_cb(struct ubus_request *req, int type, struct blob_attr *msg)
 {
     struct blob_attr *tb[__RESULT_MAX];

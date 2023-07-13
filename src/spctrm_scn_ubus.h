@@ -22,6 +22,23 @@ enum {
     __SCAN_MAX
 };
 
+enum {
+    TOTAL,
+    CONFIG,
+    MODULE_DIR,
+    TMP_DIR,
+    TAR_DIR,
+    __RLOG_NOTIFY_MAX
+};
+
+enum {
+    NAME,
+    OPTION,
+    OLD_VALUE,
+    NEW_VALUE,
+    __RLOG_CONFIG_MAX
+};
+
 void spctrm_scn_ubus_thread();
 
 #endif

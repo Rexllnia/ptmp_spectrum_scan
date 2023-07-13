@@ -97,8 +97,7 @@ function module_get(param)
         elseif status["status_code"] == "2" then
             config_tab = cjson_safe.encode(status)
             file_write(config_file,config_tab)
-            res = conn:call("rlog", "upload_stream",{module_name = "spectrum_scan",server = "http://apidemo.rj.link/service/api/warnlog?sn=MACCEG20WJL01",data = "12345" })
-            
+            res = conn:call("rlog", "upload_stream",{module_name = "spectrumScan",server = "http://apidemo.rj.link/service/api/warnlog?sn=MACCEG20WJL01",data = "12345" })
         else 
             config_tab = cjson_safe.encode(status)         
         end

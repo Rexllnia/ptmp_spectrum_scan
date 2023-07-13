@@ -4,6 +4,9 @@
 
 #include "spctrm_scn_common.h"
 
+
+#define AIRMETRO460
+
 #define SN_LEN 14
 
 #define MIN_SCAN_TIME 15 

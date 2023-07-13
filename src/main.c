@@ -53,6 +53,7 @@ sem_t g_semaphore;
 
 int main(int argc, char **argv)
 {
+    debug("version 1");
     FILE *fp;
     int ret;
 

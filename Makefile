@@ -45,10 +45,8 @@ define Package/$(PKG_NAME)/install
 	$(INSTALL_BIN) ./files/spectrumScan.lua $(1)/usr/local/lua/dev_sta/spectrumScan.lua
 	$(INSTALL_DIR) $(1)/usr/sbin
 	$(INSTALL_BIN) $(PKG_BUILD_DIR)/spectrum_scan.elf $(1)/usr/sbin/spectrum_scan.elf
-	
 endef
  
 
 
 $(eval $(call BuildPackage,$(PKG_NAME)))
-# feeds/wireless/ruijie/wifi_services

@@ -289,7 +289,7 @@ error:
                 debug("g_finished_device_list.list_len %d",g_finished_device_list.list_len);
                 pthread_mutex_unlock(&g_finished_device_list_mutex);
 
-                // spctrm_scn_common_cmd("dev_sta get -m spectrumScan '{\"real_time\":false}'",NULL);
+                spctrm_scn_common_cmd("dev_sta get -m spectrumScan '{\"real_time\":false}'",NULL);
 
                 pthread_mutex_lock(&g_mutex);
                 debug("g_finished_device_list.list_len %d",g_finished_device_list.list_len);
@@ -300,10 +300,6 @@ error:
                 pthread_mutex_lock(&g_scan_schedule_mutex);
                 g_scan_schedule++;
                 pthread_mutex_unlock(&g_scan_schedule_mutex);
-
-                
-
-
             }
         }
     }
@@ -429,7 +425,9 @@ int spctrm_scn_wireless_channel_info(struct channel_info *info,int band)
     }
 
     if (band == PLATFORM_5G) {
-#ifdef BRIDGE_PLATFORM
+#ifdef AIRMETRO460
+        spctrm_scn_common_cmd("wlanconfig rai0 radio",&rbuf);
+#elif defined EST
         spctrm_scn_common_cmd("wlanconfig ra0 radio",&rbuf);
 #elif defined AP_PLATFORM
         spctrm_scn_common_cmd("wlanconfig rax0 radio",&rbuf);
@@ -743,10 +741,14 @@ int spctrm_scn_wireless_change_channel(int channel)
         debug("param error");
         return FAIL;
     }
+#ifdef AIRMETRO460
+        spctrm_scn_common_cmd("wlanconfig rai0 radio",NULL);
+#elif defined EST
+        spctrm_scn_common_cmd("wlanconfig ra0 radio",NULL);
+#else
+    return FAIL;
+#endif
     sleep(1);
-    // sprintf(cmd,"dev_config update -m radio '{ \"radioList\": [ { \"radioIndex\": \"1\", \"type\":\"5G\", \"channel\":\"%d\" } ]}'",channel);
-    sprintf(cmd,"iwpriv ra0 set channel=%d",channel);
-    sleep(4);
     spctrm_scn_common_cmd(cmd,NULL);
     
     return SUCCESS;
