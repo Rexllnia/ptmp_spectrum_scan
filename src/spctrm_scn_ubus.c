@@ -209,8 +209,6 @@ void spctrm_scn_ubus_task(void)
     const char *ubus_socket = NULL;
     int ret;
     debug("");
-
-    debug("");
     
     signal(SIGPIPE, SIG_IGN);
     debug("");

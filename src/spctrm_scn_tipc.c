@@ -53,6 +53,7 @@ int spctrm_scn_tipc_send(__u32 dst_instance,__u32 type,size_t payload_size,char 
         free(pkt);
         return FAIL;
     }
+
     server_addr.family = AF_TIPC;
     server_addr.addrtype = TIPC_ADDR_NAME;
     server_addr.addr.name.name.type = SERVER_TYPE;
@@ -72,7 +73,6 @@ int spctrm_scn_tipc_send(__u32 dst_instance,__u32 type,size_t payload_size,char 
     close(sd);
 
     return SUCCESS;
-
 }
 
 void spctrm_scn_tipc_recv_cb(struct uloop_fd *sock, unsigned int events) {
