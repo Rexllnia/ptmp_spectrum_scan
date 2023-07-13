@@ -913,10 +913,10 @@ static void test_notify(struct ubus_context *ctx, struct ubus_object *obj,
         debug("%s",blobmsg_get_string(config_tb[OLD_VALUE]));
     }
     free(config_array_policy);
-    
 
     return;
 }
+
 static void server_main(void)
 {
     int ret;
