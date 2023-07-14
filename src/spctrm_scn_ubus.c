@@ -28,7 +28,7 @@ static void add_device_info_blobmsg(struct blob_buf *buf,struct device_info *dev
 static void add_score_list_blobmsg(struct blob_buf *buf,int channel_num,struct channel_info *channel_info_list);
 static void add_channel_score_blobmsg(struct blob_buf *buf, struct channel_info *channel_info);
 static void spctrm_scn_ubus_reconnect_timer(struct uloop_timeout *t);
-
+extern pthread_t pid1, pid2 ,pid3;
 extern struct channel_info g_channel_info_5g[MAX_BAND_5G_CHANNEL_NUM];
 extern struct channel_info realtime_channel_info_5g[MAX_BAND_5G_CHANNEL_NUM];
 extern time_t g_current_time;
@@ -37,7 +37,7 @@ extern int g_status;
 extern pthread_mutex_t g_mutex,g_scan_schedule_mutex,g_finished_device_list_mutex;
 extern int g_scan_schedule;
 static struct ubus_context *ctx;
-static struct ubus_subscriber remove_event;
+static struct ubus_subscriber mode_switch_event;
 static struct ubus_subscriber rlog_event;
 static struct blob_buf b;
 struct user_input g_input;
@@ -46,7 +46,7 @@ struct device_list g_finished_device_list;
 struct device_list g_device_list;
 
 static struct uloop_timeout retry;
-
+static struct uloop_timeout status_timer;
 struct scan_request
 {
     struct ubus_request_data req;
@@ -306,7 +306,7 @@ static void add_channel_info_blobmsg(struct blob_buf *buf, struct channel_info *
         sprintf(temp, "%d", channel_info[i].rx_util);
         blobmsg_add_string(buf, "rx_util", temp);
         memset(temp,0,sizeof(temp));
-        sprintf(temp, "%f", channel_info[i].score);
+        sprintf(temp, "%f", channel_info[i].score);/* 干扰得分 */
         blobmsg_add_string(buf, "score", temp);
 
         blobmsg_close_table(buf, obj);
@@ -342,7 +342,7 @@ static void add_avg_score_list_blobmsg(struct blob_buf *buf,struct device_list *
         sprintf(temp,"%d",p->channel_info[j].channel);
         blobmsg_add_string(buf,"channel",temp);
         memset(temp,0,sizeof(temp));    
-        sprintf(temp,"%f",channel_avg_score[j]);
+        sprintf(temp,"%f",channel_avg_score[j]);/* 干扰得分 */
         blobmsg_add_string(buf,"avg_score",temp);
 
         memset(temp,0,sizeof(temp));    
@@ -442,7 +442,7 @@ static void add_bw20_best_channel_blobmsg(struct blob_buf *buf, struct device_li
         list_for_each_device(p, i, list) {
             channel_avg_score[j] += p->channel_info[j].score;
             debug("channel %d", p->channel_info[j].channel);
-            debug("score  %f", p->channel_info[j].score);
+            debug("score  %f", p->channel_info[j].score);/* 干扰得分 */
         }
         debug("ans  %f", channel_avg_score[j]);
         channel_avg_score[j] /= (list->list_len);
@@ -659,8 +659,11 @@ scan_busy:
     sprintf(temp,"%d",g_scan_schedule);
     pthread_mutex_unlock(&g_scan_schedule_mutex);
 
+    
     blobmsg_add_string(&buf, "scan_schedule", temp);
 
+    sprintf(temp,"%d",g_input.channel_num);
+    blobmsg_add_string(&buf, "total_channel", temp);
     ubus_send_reply(ctx, &req->req, buf.head);
     ubus_complete_deferred_request(ctx, &req->req, 0);
 error:
@@ -719,6 +722,12 @@ static int scan(struct ubus_context *ctx, struct ubus_object *obj,
         total_band_num = spctrm_scn_wireless_country_channel(channel_info.bw, &bitmap_2G, &bitmap_5G, PLATFORM_5G);
         if (total_band_num == FAIL) {
             debug("spctrm_scn_wireless_country_channel FAIL");
+            len = sizeof(*hreq) + sizeof(msgstr) + 1;
+            hreq = calloc(1, len);
+            if (!hreq) {
+                return UBUS_STATUS_UNKNOWN_ERROR;
+            }
+            sprintf(hreq->data, "%d", FAIL);
             goto error;
         }
         g_input.band = blobmsg_get_u32(tb[BAND]);
@@ -876,6 +885,36 @@ static int get(struct ubus_context *ctx, struct ubus_object *obj,
 
     return 0;
 }
+static void status_timer_cb(struct uloop_timeout *t) 
+{
+    debug("");
+    if (g_status == SCAN_BUSY) {
+        uloop_timeout_set(&status_timer,700);
+    } else {
+        pthread_cancel(&pid1);
+        debug("pid1 exit");
+        if (g_mode == AP_MODE) {
+            g_mode = CPE_MODE;
+            if ((pthread_create(&pid1, NULL, spctrm_scn_wireless_cpe_scan_thread, NULL)) != 0) {
+                return;
+            }  
+        } else if (g_mode == CPE_MODE) {
+            g_mode = AP_MODE;
+            if ((pthread_create(&pid1, NULL, spctrm_scn_wireless_ap_scan_thread, NULL)) != 0) {
+                return;
+            }
+        }
+
+    }
+ 
+}
+static void mode_switch_notify(struct ubus_context *ctx, struct ubus_object *obj,
+            struct ubus_request_data *req, const char *method,
+            struct blob_attr *msg)
+{
+    debug("role sw");
+    ubus_remove_object(ctx,&channel_score_object);
+}           
 static void test_notify(struct ubus_context *ctx, struct ubus_object *obj,
             struct ubus_request_data *req, const char *method,
             struct blob_attr *msg)
@@ -884,9 +923,30 @@ static void test_notify(struct ubus_context *ctx, struct ubus_object *obj,
     struct blob_attr *tb[__RLOG_NOTIFY_MAX];
     struct blob_attr *config_tb[__RLOG_CONFIG_MAX];
     struct blob_attr *config_array[1024];
-    int i,total;
+    int i,total,ret;
 
     fprintf(stderr, "Received notification '%s'\n ", method);
+
+    if (g_mode == AP_MODE) {
+        ubus_remove_object(ctx,&channel_score_object);
+        status_timer.cb = status_timer_cb;
+
+        spctrm_scn_common_cmd("rm /etc/spectrum_scan_cache",NULL);
+    } else if (g_mode == CPE_MODE) {
+        ret = ubus_add_object(ctx, &channel_score_object);
+        if (ret) {
+            fprintf(stderr, "Failed to add object: %s\n", ubus_strerror(ret));
+            return;
+        }
+    }
+    debug("pending %d",status_timer.pending);
+    debug("time %d",status_timer.time);
+    if (status_timer.pending == 1) {
+        uloop_timeout_cancel(&status_timer);
+    } 
+    uloop_timeout_set(&status_timer,700);
+    
+
 
     blobmsg_parse(rlog_notify_policy, ARRAY_SIZE(rlog_notify_policy),tb, blob_data(msg), blob_len(msg));
     total = atoi(blobmsg_get_string(tb[TOTAL]));
@@ -894,7 +954,7 @@ static void test_notify(struct ubus_context *ctx, struct ubus_object *obj,
     debug("%s",blobmsg_get_string(tb[TMP_DIR]));
     debug("%s",blobmsg_get_string(tb[TAR_DIR]));
     debug("total %d",total);
-    
+ 
     config_array_policy = (struct blobmsg_policy*)malloc(total * sizeof(struct blobmsg_policy));
     if (config_array_policy == NULL) {
         return;
@@ -922,11 +982,14 @@ static void server_main(void)
     int ret;
     uint32_t id;
 
-    ret = ubus_add_object(ctx, &channel_score_object);
-    if (ret) {
-        fprintf(stderr, "Failed to add object: %s\n", ubus_strerror(ret));
-        return;
+    if (g_mode == AP_MODE) {
+        ret = ubus_add_object(ctx, &channel_score_object);
+        if (ret) {
+            fprintf(stderr, "Failed to add object: %s\n", ubus_strerror(ret));
+            return;
+        }
     }
+
     
     ret = ubus_register_subscriber(ctx, &test_event);
     if (ret != UBUS_STATUS_OK) {
@@ -944,6 +1007,24 @@ static void server_main(void)
         debug("error");
         return;
     }
+
+    // ret = ubus_register_subscriber(ctx, &mode_switch_event);
+    // if (ret != UBUS_STATUS_OK) {
+    //     debug("error");
+    //     return;
+    // }
+    // mode_switch_event.cb = mode_switch_notify;
+    // if (ubus_lookup_id(ctx, "notify", &id)) {
+    //     fprintf(stderr, "Failed to look up test object\n");
+    //     debug("error");
+    //     return;
+    // }
+
+    // ret = ubus_subscribe(ctx, &mode_switch_event,id);
+    // if (ret != UBUS_STATUS_OK) {
+    //     debug("error");
+    //     return;
+    // }
 
     uloop_run();
 }

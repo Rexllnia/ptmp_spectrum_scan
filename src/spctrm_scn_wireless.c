@@ -228,9 +228,9 @@ void *spctrm_scn_wireless_ap_scan_thread()
     int i,j;
     struct channel_info current_channel_info;   
 
+    debug("AP THREAND START");
     while (1) {
         sem_wait(&g_semaphore);
-        
         if (g_status == SCAN_BUSY) {
             /* timestamp */
             g_current_time = time(NULL);
@@ -238,15 +238,12 @@ void *spctrm_scn_wireless_ap_scan_thread()
             spctrm_scn_wireless_channel_info(&current_channel_info,PLATFORM_5G);
             memset(realtime_channel_info_5g,0,sizeof(realtime_channel_info_5g));
             for (g_scan_schedule = 0,j = 0,i = 0; i < sizeof(uint64_t) * ONE_BYTE; i++) {
-                if ((g_input.channel_bitmap& (((uint64_t)1)<< i)) != 0) {
-                                       
+                if ((g_input.channel_bitmap& (((uint64_t)1)<< i)) != 0) {        
                     if (g_scan_schedule < g_input.channel_num - 1) {
                         pthread_mutex_lock(&g_scan_schedule_mutex);
                         g_scan_schedule++;
                         pthread_mutex_unlock(&g_scan_schedule_mutex);
                     }
-                    
-                    
 
                     realtime_channel_info_5g[j].channel = bitmap_to_channel(i);
 
@@ -312,6 +309,7 @@ void *spctrm_scn_wireless_cpe_scan_thread()
     double score;
     struct channel_info current_channel_info;
     
+    debug("CPE THREAND START");
     while (1) {
         sem_wait(&g_semaphore);
      
@@ -669,6 +667,7 @@ void spctrm_scn_wireless_bw40_channel_score (struct device_info *device)
 										(double)((double)1 - (double)(device->channel_info[2 * j].obss_util +
 																	  device->channel_info[2 * j + 1].obss_util) / (95 * BW_40 / 20)) * 100;
         device->bw40_channel[j].rate = device->bw40_channel[j].score /100 * 600 * 0.75;/* bw40公式 */
+        device->bw40_channel[j].score = device->bw40_channel[j].score; /* 干扰得分 */
 	}    
 }
 void spctrm_scn_wireless_bw80_channel_score (struct device_info *device) 
@@ -694,6 +693,8 @@ void spctrm_scn_wireless_bw80_channel_score (struct device_info *device)
 										device->channel_info[4 * j + 2].obss_util + 
 										device->channel_info[4 * j + 3].obss_util) / (95 * BW_80 / 20)) * 100;
         device->bw80_channel[j].rate = device->bw80_channel[j].score /100 * 1200 * 0.75;
+
+        device->bw80_channel[j].score = device->bw80_channel[j].score; /* 干扰得分 */
 	}
 }
 
@@ -742,13 +743,12 @@ int spctrm_scn_wireless_change_channel(int channel)
         return FAIL;
     }
 #ifdef AIRMETRO460
-        spctrm_scn_common_cmd("wlanconfig rai0 radio",NULL);
+        sprintf(cmd,"iwpriv rai0 set  channel=%d",channel);
 #elif defined EST
-        spctrm_scn_common_cmd("wlanconfig ra0 radio",NULL);
+        sprintf(cmd,"iwpriv ra0 set  channel=%d",channel);
 #else
     return FAIL;
 #endif
-    sleep(1);
     spctrm_scn_common_cmd(cmd,NULL);
     
     return SUCCESS;

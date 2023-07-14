@@ -73,37 +73,26 @@ function module_get(param)
     local config_tab
     -- Establish connection
     param_tab = cjson_safe.decode(param)
-
-    if param_tab["real_time"] == true then 
-        local conn = ubus.connect()
-        if not conn then
-            error("Failed to connect to ubusd")
-        end
-        local status = conn:call("channel_score", "realtime_get",{})
-        config_tab = cjson_safe.encode(status)
-        -- Close connection
-        conn:close()
-    elseif param_tab["real_time"] == false then
-        local res
-        local conn = ubus.connect()
-        if not conn then
-            error("Failed to connect to ubusd")
-        end
-        local status = conn:call("channel_score", "get",{})
-
-
-        if  status["status_code"] == "0" then
-            config_tab = file_read(config_file)
-        elseif status["status_code"] == "2" then
-            config_tab = cjson_safe.encode(status)
-            file_write(config_file,config_tab)
-            res = conn:call("rlog", "upload_stream",{module_name = "spectrumScan",server = "http://apidemo.rj.link/service/api/warnlog?sn=MACCEG20WJL01",data = "12345" })
-        else 
-            config_tab = cjson_safe.encode(status)         
-        end
-        -- Close connection
-        conn:close()
+    local res
+    local conn = ubus.connect()
+    if not conn then
+        error("Failed to connect to ubusd")
     end
+    local status = conn:call("channel_score", "get",{})
+
+
+    if  status["status_code"] == "0" then
+        config_tab = file_read(config_file)
+    elseif status["status_code"] == "2" then
+        config_tab = cjson_safe.encode(status)
+        file_write(config_file,config_tab)
+        res = conn:call("rlog", "upload_stream",{module_name = "spectrumScan",server = "http://apidemo.rj.link/service/api/warnlog?sn=MACCEG20WJL01",data = "12345" })
+    else 
+        config_tab = cjson_safe.encode(status)         
+    end
+    -- Close connection
+    conn:close()
+
     return(config_tab)
 end
 

@@ -7,6 +7,7 @@
 #include <semaphore.h>
 #include <json-c/json.h>
 #include <libubox/blobmsg_json.h>
+#include <pthread.h>
 #include "libubus.h"
 #include "spctrm_scn_wireless.h"
 #include "spctrm_scn_config.h"

@@ -98,9 +98,9 @@ int main(int argc, char **argv)
             return 0;
         }
     }
-    if (g_mode == AP_MODE) {
-        spctrm_scn_ubus_thread();
-    }
+    
+    spctrm_scn_ubus_thread();
+    
 if (g_mode == AP_MODE) {
 
 	if (pthread_join(pid1, NULL) != 0) {
