@@ -51,15 +51,53 @@ static struct ubus_object spctrm_scn_object = {
     .methods = spctrm_scn_methods,
     .n_methods = ARRAY_SIZE(spctrm_scn_methods),
 };
-
-static void spctrm_scn_ubus_set_reply(struct uloop_timeout *t) 
-{ 
+static void spctrm_scn_tipc_wait_cpe_cb(struct uloop_timeout *t) 
+{
     struct spctrm_scn_ubus_set_request *hreq = container_of(t,struct spctrm_scn_ubus_set_request,timeout);
-    debug("");
-    ubus_complete_deferred_request(ctx,&hreq->req,0);
+    struct device_info *p;
+    int i;
+
+    list_for_each_device(p,i,&g_device_list) {
+        debug("");
+        if (p->finished_flag != FINISHED) {
+            debug("");
+            uloop_timeout_set(&hreq->timeout,500);
+            return;
+        }
+    }
 
     hreq->timeout.cb = spctrm_scn_wireless_scan_task;
     uloop_timeout_set(&hreq->timeout,1000);
+    debug("");
+    return;
+    
+}
+static void spctrm_scn_ubus_set_reply(struct uloop_timeout *t) 
+{ 
+    char start_msg[9] = "start";
+    struct spctrm_scn_ubus_set_request *hreq = container_of(t,struct spctrm_scn_ubus_set_request,timeout);
+    
+    debug("");
+    
+    ubus_complete_deferred_request(ctx,&hreq->req,0);
+
+    if (spctrm_scn_tipc_send(SERVER_TYPE,PROTOCAL_TYPE_SCAN,sizeof(start_msg),start_msg) == FAIL) {
+        free(hreq);
+
+        debug("FAIL");
+        return;
+    }
+
+    if (spctrm_scn_tipc_send(SERVER_TYPE,PROTOCAL_TYPE_SCAN,sizeof(start_msg),start_msg) == FAIL) {
+        free(hreq);
+
+        debug("FAIL");
+        return;
+    }
+    
+    debug("");
+    hreq->timeout.cb = spctrm_scn_tipc_wait_cpe_cb;
+    uloop_timeout_set(&hreq->timeout,500);
     
 }
 

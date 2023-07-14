@@ -26,6 +26,11 @@ void spctrm_scn_wireless_scan_task(struct uloop_timeout *t)
     struct spctrm_scn_ubus_set_request *hreq = container_of(t,struct spctrm_scn_ubus_set_request,timeout);
     static int i;
     uint8_t channel;
+    static struct blob_buf buf;
+    int fd;
+
+    blob_buf_init(&buf, 0);
+    blobmsg_add_string(&buf,"test","123");
 
     debug("");
     list_for_each_bitset(hreq->channel_bitmap,i) {
@@ -170,8 +175,6 @@ int spctrm_scn_wireless_get_channel_info(struct channel_info *info,int band)
 
     return SUCCESS;
 }
-
-
 
 inline int spctrm_scn_wireless_band_check(uint8_t band) 
 {

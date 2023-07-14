@@ -1,5 +1,33 @@
 #include "spctrm_scn_common.h"
 
+int spctrm_scn_common_mac_2_nodeadd(unsigned char *mac_src,__u32 *instant)
+{
+    unsigned int mac[ETH_ALEN];
+    unsigned int tmp;
+    char buf[30];
+
+    if (mac_src == NULL) {
+        return FAIL;
+    }
+
+    memset(mac,0,sizeof(mac));
+    if (sscanf(mac_src, "%2x:%2x:%2x:%2x:%2x:%2x",&mac[0],&mac[1],&mac[2],&mac[3],&mac[4],&mac[5]) != 6) {
+        perror("please input right like :rg_tipc_mac_to_nodeadd aa:bb:cc:dd:ee:ffi \n");
+        return FAIL;
+    }
+
+    tmp = (mac[0] ^ mac[1] ^ mac[2]) & 0xff;
+    tmp = (tmp & 0x0f) ^ (tmp >> 4);
+
+    memset(buf,0,sizeof(buf));
+    sprintf(buf,"%x%02x%02x%02x",tmp,mac[3],mac[4],mac[5]);
+
+    tmp = 0;
+    sscanf(buf,"%x",&tmp);
+    *instant = tmp;
+
+    return SUCCESS;
+}
 
 char spctrm_scn_common_read_file(char *name,char *buf,char len) {
     int fd;
@@ -20,32 +48,7 @@ char spctrm_scn_common_read_file(char *name,char *buf,char len) {
     }
     return FAIL;
 }
-__u32 spctrm_scn_common_mac_2_nodeadd(unsigned char *mac_src)
-{
-    unsigned int mac[ETH_ALEN];
-    unsigned int tmp;
-    char buf[30];
 
-    if (mac_src == NULL) {
-        return 0;
-    }
-
-    memset(mac,0,sizeof(mac));
-    if (sscanf(mac_src, "%2x:%2x:%2x:%2x:%2x:%2x",&mac[0],&mac[1],&mac[2],&mac[3],&mac[4],&mac[5]) != 6) {
-        perror("please input right like :rg_tipc_mac_to_nodeadd aa:bb:cc:dd:ee:ffi \n");
-        return 0;
-    }
-
-    tmp = (mac[0] ^ mac[1] ^ mac[2]) & 0xff;
-    tmp = (tmp & 0x0f) ^ (tmp >> 4);
-
-    memset(buf,0,sizeof(buf));
-    sprintf(buf,"%x%02x%02x%02x",tmp,mac[3],mac[4],mac[5]);
-
-    tmp = 0;
-    sscanf(buf,"%x",&tmp);
-    return tmp;
-}
 int spctrm_scn_common_cmd(char *cmd,char **rbuf) 
 {
     FILE *fp;

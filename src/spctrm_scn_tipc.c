@@ -10,6 +10,9 @@
 struct uloop_fd c_fd; 
 struct sockaddr_tipc server_addr;
 struct sockaddr_tipc client_addr;
+extern struct device_list g_device_list;
+
+
 
 
 int spctrm_scn_tipc_send(__u32 dst_instance,__u32 type,size_t payload_size,char *payload)
@@ -36,7 +39,10 @@ int spctrm_scn_tipc_send(__u32 dst_instance,__u32 type,size_t payload_size,char 
     }
     memset(mac,0,sizeof(mac));
     spctrm_scn_common_read_file("/proc/rg_sys/sys_mac",mac,sizeof(mac) - 1);
-    src_instant = spctrm_scn_common_mac_2_nodeadd(mac);
+    if (spctrm_scn_common_mac_2_nodeadd(mac,&src_instant)) {
+        return FAIL;
+    }
+    debug("src_instant %x",src_instant);
 
     memcpy(pkt+sizeof(tipc_recv_packet_head_t),payload,payload_size);
     head = (tipc_recv_packet_head_t *)pkt;
@@ -45,7 +51,6 @@ int spctrm_scn_tipc_send(__u32 dst_instance,__u32 type,size_t payload_size,char 
     head->instant = src_instant;
     head->type = type;
     head->payload_size = payload_size;
-
 
     sd = socket(AF_TIPC, SOCK_RDM, 0);
     if (sd < 0) {
@@ -74,7 +79,33 @@ int spctrm_scn_tipc_send(__u32 dst_instance,__u32 type,size_t payload_size,char 
 
     return SUCCESS;
 }
+int spctrm_scn_tipc_protocal_scan_ack_cb(tipc_recv_packet_head_t *head,char *pkt) 
+{
+    struct device_info *p;
+    int i;
+    __u32 instant;
+    
+    instant = 0;
+    list_for_each_device(p,i,&g_device_list) {
+        if (spctrm_scn_common_mac_2_nodeadd(p->mac,&instant) == FAIL) {
+            debug("FAIL");
+            return FAIL;
+        }
+        if (instant == head->instant) {
+            p->finished_flag = FINISHED;
+            return;
+        }
+    }
+}
+int spctrm_scn_tipc_protocal_scan_cb(tipc_recv_packet_head_t *head,char *pkt) 
+{
+    char ack[9] = "ack";
+    spctrm_scn_tipc_send(head->instant,PROTOCAL_TYPE_SCAN_ACK,sizeof(ack),ack);
+}
+int spctrm_scn_tipc_protocal_get_cb(tipc_recv_packet_head_t *head,char *pkt) 
+{
 
+}
 void spctrm_scn_tipc_recv_cb(struct uloop_fd *sock, unsigned int events) {
 	tipc_recv_packet_head_t head;
 	size_t pkt_size;
@@ -84,6 +115,7 @@ void spctrm_scn_tipc_recv_cb(struct uloop_fd *sock, unsigned int events) {
 
     pkt = NULL;
     memset(&head, 0, sizeof(head));
+    debug("TIPC");
     if (0 >= recvfrom(sock->fd, &head, sizeof(head), MSG_PEEK,
                     (struct sockaddr *)&client_addr, &alen)) {
         perror("Server: unexpected message");
@@ -108,9 +140,15 @@ void spctrm_scn_tipc_recv_cb(struct uloop_fd *sock, unsigned int events) {
     switch (head.type) {
     case PROTOCAL_TYPE_SCAN:
         debug("TYPE_SCAN");
+        spctrm_scn_tipc_protocal_scan_cb(&head,pkt);
         break;
     case PROTOCAL_TYPE_GET:
         debug("TYPE_GET");
+        spctrm_scn_tipc_protocal_get_cb(&head,pkt);
+        break;
+    case PROTOCAL_TYPE_SCAN_ACK:
+        debug("TYPE_SCAN_ACK");
+        spctrm_scn_tipc_protocal_scan_ack_cb(&head,pkt);
         break;
     default:
         break;
@@ -132,8 +170,10 @@ void spctrm_scn_tipc_task()
     memset(mac,0,sizeof(mac));
     spctrm_scn_common_read_file("/proc/rg_sys/sys_mac",mac,sizeof(mac) - 1);
 
-    instant = spctrm_scn_common_mac_2_nodeadd(mac);
-
+    if (spctrm_scn_common_mac_2_nodeadd(mac,&instant) == FAIL) {
+        return FAIL;
+    }
+    debug("instant %x",instant);
 	server_addr.family = AF_TIPC;
 	server_addr.addrtype = TIPC_ADDR_NAMESEQ;
 	server_addr.addr.nameseq.type = SERVER_TYPE;

@@ -23,6 +23,7 @@
 
 #define SERVER_TYPE  103    
 #define PROTOCAL_TYPE_SCAN    18888
+#define PROTOCAL_TYPE_SCAN_ACK    18887
 #define PROTOCAL_TYPE_GET     102
 
 #define SERVER_INST  17
@@ -34,6 +35,8 @@ typedef struct tipc_recv_packet_head {
     unsigned int instant;
 }tipc_recv_packet_head_t;
 
+int spctrm_scn_common_mac_2_nodeadd(unsigned char *mac_src,__u32 *instant);
+int spctrm_scn_tipc_send(__u32 dst_instance,__u32 type,size_t payload_size,char *payload);
 void spctrm_scn_tipc_task();
 void tipc_close();
 #endif
