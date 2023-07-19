@@ -21,7 +21,7 @@
 #define ETH_ALEN 6
 
 #define MAX_DEVICE_NUM  32
-#define MAX_POPEN_BUFFER_SIZE   8192
+#define MAX_POPEN_BUFFER_SIZE   81920
 
 #define BW_20   20
 #define BW_40   40
@@ -32,6 +32,7 @@
 #define SCAN_IDLE       2
 #define SCAN_NOT_START  0
 #define SCAN_TIMEOUT  	3
+#define SCAN_ERR        -1
 
 #define FAIL       -1
 #define SUCCESS    0

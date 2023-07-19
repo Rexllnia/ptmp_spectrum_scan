@@ -21,6 +21,7 @@ static void rlog_module_enable_cb(struct ubus_request *req, int type, struct blo
     module_enable_result = atoi(blobmsg_get_string(tb[RESULT]));  
     debug("%d",upload_stream_result);   
 }
+
 int spctrm_scn_rlog_module_set(const char *module) 
 {
     json_object *root;

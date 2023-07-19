@@ -37,7 +37,6 @@ extern int g_status;
 extern pthread_mutex_t g_mutex,g_scan_schedule_mutex,g_finished_device_list_mutex;
 extern int g_scan_schedule;
 static struct ubus_context *ctx;
-static struct ubus_subscriber mode_switch_event;
 static struct ubus_subscriber rlog_event;
 static struct blob_buf b;
 struct user_input g_input;
@@ -214,8 +213,19 @@ static void add_score_list_blobmsg(struct blob_buf *buf, int channel_num, struct
 
 static void add_bw80_blobmsg(struct blob_buf *buf, struct device_info *device)
 {
-    void *const bw80_table = blobmsg_open_table(buf, "bw_80");
+    void *bw80_table;
+    uint8_t bw_bitmap;
 
+    if (spctrm_scn_wireless_get_country_channel_bwlist(&bw_bitmap) == FAIL) {
+        return;
+    }
+    debug("%d",bw_bitmap);
+    /* bw80 100 */
+    if ((bw_bitmap & 4) != 4) {
+        debug("no bw 80");
+        return;
+    } 
+    bw80_table = blobmsg_open_table(buf, "bw_80");
     spctrm_scn_wireless_bw80_channel_score (device);
     add_score_list_blobmsg(buf, g_input.channel_num / 4, device->bw80_channel);
     blobmsg_close_table(buf, bw80_table);
@@ -223,7 +233,24 @@ static void add_bw80_blobmsg(struct blob_buf *buf, struct device_info *device)
 
 static void add_bw40_blobmsg(struct blob_buf *buf, struct device_info *device)
 {
-    void *const bw40_table = blobmsg_open_table(buf, "bw_40");
+    //1. support BW 40? if not, return;
+    void * bw40_table;
+    uint8_t bw_bitmap;
+
+    if (spctrm_scn_wireless_get_country_channel_bwlist(&bw_bitmap) == FAIL) {
+        debug("FAIL");
+        return;
+    }
+    debug("%d",bw_bitmap);
+    /* bw40 10 */
+    if ((bw_bitmap & 2) != 2) {
+        debug("no bw 40");
+        return;
+    } 
+    debug("has bw 40");
+    bw40_table = blobmsg_open_table(buf, "bw_40");
+
+    //2.use bw40_channel 
 
     spctrm_scn_wireless_bw40_channel_score(device);
     add_score_list_blobmsg(buf, g_input.channel_num / 2, device->bw40_channel);
@@ -235,11 +262,17 @@ static void add_device_info_blobmsg(struct blob_buf *buf, struct device_info *de
     void *const device_obj = blobmsg_open_table(buf, NULL);
     void *BAND_5G_obj;
     void *bw20_table;
+    char temp[128];
 
     debug(" %s \r\n", device->series_no);
     debug(" %s \r\n", device->role);
+
+
+    sprintf(temp,"%d",device->finished_flag);
+    blobmsg_add_string(buf,"status",temp);
     blobmsg_add_string(buf, "SN", device->series_no);
     blobmsg_add_string(buf, "role", device->role);
+
 
     /* 5G */
     BAND_5G_obj = blobmsg_open_table(buf, "5G");
@@ -322,6 +355,15 @@ static void add_avg_score_list_blobmsg(struct blob_buf *buf,struct device_list *
     void *avg_score_table_obj;
     void *bw20_list_obj,*bw40_list_obj,*bw80_list_obj;
     void *avg_score_elem_obj;
+    uint8_t bw_bitmap;
+
+
+
+    if (spctrm_scn_wireless_get_country_channel_bwlist(&bw_bitmap) == FAIL) {
+        debug("FAIL");
+        return;
+    }
+    debug("%d",bw_bitmap);
 
     memset(channel_avg_score, 0, MAX_BAND_5G_CHANNEL_NUM * sizeof(double));
     avg_score_table_obj = blobmsg_open_table(buf, "avg_score_table");
@@ -355,71 +397,75 @@ static void add_avg_score_list_blobmsg(struct blob_buf *buf,struct device_list *
     debug("");
     blobmsg_close_array(buf,bw20_list_obj);
     debug("");
-    bw40_list_obj = blobmsg_open_array(buf,"bw40");
-    memset(channel_avg_score,0,sizeof(channel_avg_score));
-    memset(channel_avg_rate,0,sizeof(channel_avg_rate));
-    for (j = 0; j < g_input.channel_num/2; j++) {
-        list_for_each_device(p, i, list) {
-            channel_avg_score[j] += p->bw40_channel[j].score;
-            channel_avg_rate[j] +=  p->bw40_channel[j].rate;
-            debug("score  %f", p->bw40_channel[j].score);
-        }
-        debug("channel %d", p->bw40_channel[j].channel);
-        debug("ans  %f", channel_avg_score[j]);
-        channel_avg_score[j] /= (list->list_len);
-        channel_avg_rate[j] /= (list->list_len);
-        avg_score_elem_obj = blobmsg_open_table(buf,NULL);
-        p = spctrm_scn_dev_find_ap2(list);
-        memset(temp,0,sizeof(temp));
-        sprintf(temp,"%d",p->bw40_channel[j].channel);
-        blobmsg_add_string(buf,"channel",temp);
+    /* bw40 10 */
+    if ((bw_bitmap & 2) == 2) {
+        bw40_list_obj = blobmsg_open_array(buf,"bw40");
+        memset(channel_avg_score,0,sizeof(channel_avg_score));
+        memset(channel_avg_rate,0,sizeof(channel_avg_rate));
+        for (j = 0; j < g_input.channel_num/2; j++) {
+            list_for_each_device(p, i, list) {
+                channel_avg_score[j] += p->bw40_channel[j].score;
+                channel_avg_rate[j] +=  p->bw40_channel[j].rate;
+                debug("score  %f", p->bw40_channel[j].score);
+            }
+            debug("channel %d", p->bw40_channel[j].channel);
+            debug("ans  %f", channel_avg_score[j]);
+            channel_avg_score[j] /= (list->list_len);
+            channel_avg_rate[j] /= (list->list_len);
+            avg_score_elem_obj = blobmsg_open_table(buf,NULL);
+            p = spctrm_scn_dev_find_ap2(list);
+            memset(temp,0,sizeof(temp));
+            sprintf(temp,"%d",p->bw40_channel[j].channel);
+            blobmsg_add_string(buf,"channel",temp);
 
-        memset(temp,0,sizeof(temp));    
-        sprintf(temp,"%f",channel_avg_score[j]);
-        blobmsg_add_string(buf,"avg_score",temp);
-        
+            memset(temp,0,sizeof(temp));    
+            sprintf(temp,"%f",channel_avg_score[j]);
+            blobmsg_add_string(buf,"avg_score",temp);
+            
 
-        memset(temp,0,sizeof(temp));    
-        sprintf(temp,"%f",channel_avg_rate[j]);
-        blobmsg_add_string(buf,"avg_rate",temp);
+            memset(temp,0,sizeof(temp));    
+            sprintf(temp,"%f",channel_avg_rate[j]);
+            blobmsg_add_string(buf,"avg_rate",temp);
 
-        blobmsg_close_table(buf,avg_score_elem_obj);
+            blobmsg_close_table(buf,avg_score_elem_obj);
 
-        avg_score_elem_obj = NULL;
-    }    
-    blobmsg_close_array(buf,bw40_list_obj);
+            avg_score_elem_obj = NULL;
+        }    
+        blobmsg_close_array(buf,bw40_list_obj);
+    } 
+    if ((bw_bitmap & 4) == 4) {
+        bw80_list_obj = blobmsg_open_array(buf,"bw80");
+        memset(channel_avg_score,0,sizeof(channel_avg_score));
+        memset(channel_avg_rate,0,sizeof(channel_avg_rate));
+        for (j = 0; j < g_input.channel_num/4; j++) {
+            list_for_each_device(p, i, list) {
+                channel_avg_score[j] += p->bw80_channel[j].score;
+                channel_avg_rate[j] +=  p->bw80_channel[j].rate;
+                debug("score  %f", p->bw80_channel[j].score);
+            }
+            debug("channel %d", p->bw80_channel[j].channel);
+            debug("ans  %f", channel_avg_score[j]);
+            channel_avg_score[j] /= (list->list_len);
+            channel_avg_rate[j] /= (list->list_len);
+            avg_score_elem_obj = blobmsg_open_table(buf,NULL);
+            p = spctrm_scn_dev_find_ap2(list);
+            memset(temp,0,sizeof(temp));
+            sprintf(temp,"%d",p->bw80_channel[j].channel);
+            blobmsg_add_string(buf,"channel",temp);
 
-    bw80_list_obj = blobmsg_open_array(buf,"bw80");
-    memset(channel_avg_score,0,sizeof(channel_avg_score));
-    memset(channel_avg_rate,0,sizeof(channel_avg_rate));
-    for (j = 0; j < g_input.channel_num/4; j++) {
-        list_for_each_device(p, i, list) {
-            channel_avg_score[j] += p->bw80_channel[j].score;
-            channel_avg_rate[j] +=  p->bw80_channel[j].rate;
-            debug("score  %f", p->bw80_channel[j].score);
-        }
-        debug("channel %d", p->bw80_channel[j].channel);
-        debug("ans  %f", channel_avg_score[j]);
-        channel_avg_score[j] /= (list->list_len);
-        channel_avg_rate[j] /= (list->list_len);
-        avg_score_elem_obj = blobmsg_open_table(buf,NULL);
-        p = spctrm_scn_dev_find_ap2(list);
-        memset(temp,0,sizeof(temp));
-        sprintf(temp,"%d",p->bw80_channel[j].channel);
-        blobmsg_add_string(buf,"channel",temp);
+            memset(temp,0,sizeof(temp));    
+            sprintf(temp,"%f",channel_avg_score[j]);
+            blobmsg_add_string(buf,"avg_score",temp);
 
-        memset(temp,0,sizeof(temp));    
-        sprintf(temp,"%f",channel_avg_score[j]);
-        blobmsg_add_string(buf,"avg_score",temp);
+            memset(temp,0,sizeof(temp));    
+            sprintf(temp,"%f",channel_avg_rate[j]);
+            blobmsg_add_string(buf,"avg_rate",temp);
 
-        memset(temp,0,sizeof(temp));    
-        sprintf(temp,"%f",channel_avg_rate[j]);
-        blobmsg_add_string(buf,"avg_rate",temp);
-
-        blobmsg_close_table(buf,avg_score_elem_obj);
-        avg_score_elem_obj = NULL;
-    }    
-    blobmsg_close_array(buf,bw80_list_obj);
+            blobmsg_close_table(buf,avg_score_elem_obj);
+            avg_score_elem_obj = NULL;
+        }    
+        blobmsg_close_array(buf,bw80_list_obj);
+    }
 
 
     blobmsg_close_table(buf,avg_score_table_obj);
@@ -477,6 +523,19 @@ static void add_bw40_best_channel_blobmsg(struct blob_buf *buf, struct device_li
     double channel_avg_score[MAX_BAND_5G_CHANNEL_NUM];
     char temp[100]; 
     struct device_info *p;
+    uint8_t bw_bitmap;
+
+    if (spctrm_scn_wireless_get_country_channel_bwlist(&bw_bitmap) == FAIL) {
+        debug("FAIL");
+        return;
+    }
+    debug("%d",bw_bitmap);
+    /* bw40 10 */
+    if ((bw_bitmap & 2) != 2) {
+        debug("no bw 40");
+        return;
+    } 
+    debug("has bw 40");
 
     memset(channel_avg_score, 0, MAX_BAND_5G_CHANNEL_NUM * sizeof(double));
 
@@ -516,6 +575,20 @@ static void add_bw80_best_channel_blobmsg(struct blob_buf *buf, struct device_li
     double channel_avg_score[MAX_BAND_5G_CHANNEL_NUM];
     char temp[100];
     struct device_info *p;
+
+    uint8_t bw_bitmap;
+
+    if (spctrm_scn_wireless_get_country_channel_bwlist(&bw_bitmap) == FAIL) {
+        debug("FAIL");
+        return;
+    }
+    debug("%d",bw_bitmap);
+    /* bw40 10 */
+    if ((bw_bitmap & 4) != 4) {
+        debug("no bw 80");
+        return;
+    } 
+    debug("has bw 80");
 
     memset(channel_avg_score, 0, MAX_BAND_5G_CHANNEL_NUM * sizeof(double));
 
@@ -561,9 +634,9 @@ static void get_reply(struct uloop_timeout *t)
 
     blob_buf_init(&buf, 0);
     
-    if (g_status == SCAN_TIMEOUT) {
-        goto scan_timeout;
-    }
+    // if (g_status == SCAN_TIMEOUT) {
+    //     goto scan_timeout;
+    // }
     if (g_status == SCAN_BUSY) {
         goto scan_busy;
     }
@@ -913,7 +986,8 @@ static void mode_switch_notify(struct ubus_context *ctx, struct ubus_object *obj
             struct blob_attr *msg)
 {
     debug("role sw");
-    ubus_remove_object(ctx,&channel_score_object);
+    system("rm /etc/spectrum_scan_cache");
+    system("/etc/init.d/spectrum_scan restart");
 }           
 static void test_notify(struct ubus_context *ctx, struct ubus_object *obj,
             struct ubus_request_data *req, const char *method,
@@ -925,29 +999,7 @@ static void test_notify(struct ubus_context *ctx, struct ubus_object *obj,
     struct blob_attr *config_array[1024];
     int i,total,ret;
 
-    fprintf(stderr, "Received notification '%s'\n ", method);
-
-    if (g_mode == AP_MODE) {
-        ubus_remove_object(ctx,&channel_score_object);
-        status_timer.cb = status_timer_cb;
-
-        spctrm_scn_common_cmd("rm /etc/spectrum_scan_cache",NULL);
-    } else if (g_mode == CPE_MODE) {
-        ret = ubus_add_object(ctx, &channel_score_object);
-        if (ret) {
-            fprintf(stderr, "Failed to add object: %s\n", ubus_strerror(ret));
-            return;
-        }
-    }
-    debug("pending %d",status_timer.pending);
-    debug("time %d",status_timer.time);
-    if (status_timer.pending == 1) {
-        uloop_timeout_cancel(&status_timer);
-    } 
-    uloop_timeout_set(&status_timer,700);
-    
-
-
+    debug("total ");
     blobmsg_parse(rlog_notify_policy, ARRAY_SIZE(rlog_notify_policy),tb, blob_data(msg), blob_len(msg));
     total = atoi(blobmsg_get_string(tb[TOTAL]));
     debug("%s",blobmsg_get_string(tb[MODULE_DIR]));
@@ -976,7 +1028,7 @@ static void test_notify(struct ubus_context *ctx, struct ubus_object *obj,
 
     return;
 }
-
+struct ubus_event_handler mode_switch_event;
 static void server_main(void)
 {
     int ret;
@@ -990,7 +1042,6 @@ static void server_main(void)
         }
     }
 
-    
     ret = ubus_register_subscriber(ctx, &test_event);
     if (ret != UBUS_STATUS_OK) {
         debug("error");
@@ -1008,28 +1059,11 @@ static void server_main(void)
         return;
     }
 
-    // ret = ubus_register_subscriber(ctx, &mode_switch_event);
-    // if (ret != UBUS_STATUS_OK) {
-    //     debug("error");
-    //     return;
-    // }
-    // mode_switch_event.cb = mode_switch_notify;
-    // if (ubus_lookup_id(ctx, "notify", &id)) {
-    //     fprintf(stderr, "Failed to look up test object\n");
-    //     debug("error");
-    //     return;
-    // }
-
-    // ret = ubus_subscribe(ctx, &mode_switch_event,id);
-    // if (ret != UBUS_STATUS_OK) {
-    //     debug("error");
-    //     return;
-    // }
+    mode_switch_event.cb = mode_switch_notify;
+    ubus_register_event_handler(ctx,&mode_switch_event,"notify");
 
     uloop_run();
 }
-
-
 
 static void spctrm_scn_ubus_reconnect_timer(struct uloop_timeout *t) 
 {
@@ -1042,7 +1076,6 @@ static void spctrm_scn_ubus_reconnect_timer(struct uloop_timeout *t)
     ubus_add_uloop(ctx);
 
 }
-
 
 static void spctrm_scn_ubus_connection_lost(struct ubus_context *ctx)
 {

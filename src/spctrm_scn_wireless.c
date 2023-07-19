@@ -21,6 +21,23 @@ extern pthread_mutex_t g_scan_schedule_mutex;
 extern sem_t g_semaphore;
 time_t g_current_time;
 
+void spctrm_scn_wireless_change_bw(int bw)
+{
+    switch (bw)
+    {
+    case BW_20:
+        spctrm_scn_common_cmd("iwpriv ra0 set HtBw=0",NULL);
+        break;
+    case BW_40:
+        spctrm_scn_common_cmd("iwpriv ra0 set HtBw=1",NULL);
+        break;    
+    case BW_80:
+        spctrm_scn_common_cmd("iwpriv ra0 set VhtBw=1",NULL);
+        break; 
+    default:
+        break;
+    }
+}
 static void print_bits(uint64_t num) {
     int i;
 
@@ -34,6 +51,81 @@ static void print_bits(uint64_t num) {
 #ifdef AP_PLATFORM
 
 #elif defined BRIDGE_PLATFORM
+int spctrm_scn_wireless_get_country_channel_bwlist(uint8_t *bw_bitmap)
+{
+    int array_len,i;
+    char cmd[MAX_POPEN_BUFFER_SIZE];
+    char *rbuf;
+    json_object *root;
+    json_object *bandwidth_5G_obj,*elem;
+    char *bw_str;
+
+    if (bw_bitmap == NULL) {
+        return FAIL;
+    }
+    debug("");
+    if (spctrm_scn_common_cmd("dev_sta get -m country_channel '{\"qry_type\": \"bandwidth_list\"}'",&rbuf) == FAIL) {
+        if (rbuf != NULL) {
+            free (rbuf);
+        }
+        return FAIL;
+    }
+    debug("%s",rbuf);
+    root = json_tokener_parse(rbuf);
+    if (root == NULL) {
+        if (rbuf != NULL) {
+            free (rbuf);
+        }     
+        return FAIL;   
+    }
+    debug("");
+    bandwidth_5G_obj = json_object_object_get(root,"bandwidth_5G");
+    if (bandwidth_5G_obj == NULL) {
+        if (rbuf != NULL) {
+            free (rbuf);
+        }     
+        json_object_put(root);
+        return FAIL;   
+    }    
+
+    array_len = 0;
+    array_len = json_object_array_length(bandwidth_5G_obj);
+    debug("");
+    *bw_bitmap = 0;
+    for (i = 0;i < array_len;i++) {
+        elem = json_object_array_get_idx(bandwidth_5G_obj, i);
+        bw_str = json_object_get_string(elem);
+        if (bw_str == NULL) {
+            if (rbuf != NULL) {
+                free (rbuf);
+            }     
+            json_object_put(root);
+            return FAIL;   
+        }
+        debug("");
+        if (strcmp(bw_str,"20") == 0) {
+            *bw_bitmap |= 1;
+        } else if (strcmp(bw_str,"40") == 0) {
+            *bw_bitmap |= 1 << 1;  
+        } else if (strcmp(bw_str,"80") == 0) {
+            *bw_bitmap |= 1 << 2; 
+        }
+    
+        // json_object_put(elem);
+    }
+
+    debug("bw_bitmap %d",*bw_bitmap);
+
+    
+    
+
+
+    if (rbuf != NULL) {
+        free (rbuf);
+    }
+    json_object_put(root);
+    return SUCCESS;
+}
 int spctrm_scn_wireless_country_channel(int bw,uint64_t *bitmap_2G,uint64_t *bitmap_5G,int band)
 {
 
@@ -236,6 +328,8 @@ void *spctrm_scn_wireless_ap_scan_thread()
             g_current_time = time(NULL);
             debug("AP SCAN START");
             spctrm_scn_wireless_channel_info(&current_channel_info,PLATFORM_5G);
+            spctrm_scn_wireless_change_bw(BW_20);
+            sleep(2);
             memset(realtime_channel_info_5g,0,sizeof(realtime_channel_info_5g));
             for (g_scan_schedule = 0,j = 0,i = 0; i < sizeof(uint64_t) * ONE_BYTE; i++) {
                 if ((g_input.channel_bitmap& (((uint64_t)1)<< i)) != 0) {        
@@ -263,6 +357,8 @@ void *spctrm_scn_wireless_ap_scan_thread()
                 }
             }
 
+            spctrm_scn_wireless_change_bw(current_channel_info.bw);
+            
             if (spctrm_scn_wireless_change_channel(current_channel_info.channel) == FAIL) {
                 goto error;
             }
@@ -272,11 +368,25 @@ void *spctrm_scn_wireless_ap_scan_thread()
 	        i = spctrm_scn_dev_find_ap(&g_device_list);
             g_device_list.device[i].finished_flag = FINISHED;
             if (timeout_func() == FAIL) {
-error:
+                debug( "line : %d func %s g_status : %d,",__LINE__,__func__,g_status);
+                memcpy(g_channel_info_5g,realtime_channel_info_5g,sizeof(realtime_channel_info_5g));
+
+                pthread_mutex_lock(&g_finished_device_list_mutex);
+                memcpy(&g_finished_device_list,&g_device_list,sizeof(struct device_list));
+                debug("g_finished_device_list.list_len %d",g_finished_device_list.list_len);
+                pthread_mutex_unlock(&g_finished_device_list_mutex);
+
+                spctrm_scn_common_cmd("dev_sta get -m spectrumScan '{\"real_time\":false}'",NULL);
+
                 pthread_mutex_lock(&g_mutex);
+                debug("g_finished_device_list.list_len %d",g_finished_device_list.list_len);
                 g_status = SCAN_TIMEOUT;
                 g_input.scan_time = MIN_SCAN_TIME; /* restore scan time */
                 pthread_mutex_unlock(&g_mutex);
+
+                pthread_mutex_lock(&g_scan_schedule_mutex);
+                g_scan_schedule++;
+                pthread_mutex_unlock(&g_scan_schedule_mutex);
             } else {
                 debug( "line : %d func %s g_status : %d,",__LINE__,__func__,g_status);
                 memcpy(g_channel_info_5g,realtime_channel_info_5g,sizeof(realtime_channel_info_5g));
@@ -298,6 +408,12 @@ error:
                 g_scan_schedule++;
                 pthread_mutex_unlock(&g_scan_schedule_mutex);
             }
+            system("dev_sta get -m spectrumScan");
+error:
+            pthread_mutex_lock(&g_mutex);
+            g_status = SCAN_ERR;
+            g_input.scan_time = MIN_SCAN_TIME; /* restore scan time */
+            pthread_mutex_unlock(&g_mutex);
         }
     }
 }
@@ -317,6 +433,8 @@ void *spctrm_scn_wireless_cpe_scan_thread()
             /* timestamp */
             debug("CPE SCAN START");
             spctrm_scn_wireless_channel_info(&current_channel_info,PLATFORM_5G);
+            spctrm_scn_wireless_change_bw(BW_20);
+            sleep(2);
             memset(realtime_channel_info_5g,0,sizeof(realtime_channel_info_5g));
             for (j = 0,i = 0; i < sizeof(uint64_t) * ONE_BYTE; i++) {
                 if ((g_input.channel_bitmap & (((uint64_t)1)<< i)) != 0) {
@@ -341,7 +459,8 @@ void *spctrm_scn_wireless_cpe_scan_thread()
                     goto error;
                 }
             }
-            
+
+            spctrm_scn_wireless_change_bw(current_channel_info.bw);
             if (spctrm_scn_wireless_change_channel(current_channel_info.channel) == FAIL) {
                 goto error;
             }
@@ -355,6 +474,7 @@ void *spctrm_scn_wireless_cpe_scan_thread()
         }
 error:
     if (g_status == SCAN_TIMEOUT) {
+            spctrm_scn_wireless_change_bw(current_channel_info.bw);
             spctrm_scn_wireless_change_channel(current_channel_info.channel);
             pthread_mutex_lock(&g_mutex);
             g_status = SCAN_IDLE;
@@ -651,13 +771,20 @@ double spctrm_scn_wireless_channel_score(struct channel_info *info)
 void spctrm_scn_wireless_bw40_channel_score (struct device_info *device) 
 {
 	int j;
+    int channel_num;
+    int bw;
+    uint64_t bitmap_2G,bitmap_5G;
 
     if (device == NULL) {
         debug("param NULL");
         return;
     }
-    debug("g_input.channel_num %d ",g_input.channel_num);
-	for (j = 0; j < g_input.channel_num / 2; j++) {
+
+    //调country channel 
+    channel_num = spctrm_scn_wireless_country_channel(BW_40,bitmap_2G,bitmap_5G,PLATFORM_5G);
+
+    debug("g_input.channel_num %d ",channel_num);
+	for (j = 0; j < channel_num / 2; j++) {
 		device->bw40_channel[j] = device->channel_info[2 * j];
         debug("bw40_channel %d",device->bw40_channel[j].channel);
         /* bw40底噪 */
@@ -673,13 +800,17 @@ void spctrm_scn_wireless_bw40_channel_score (struct device_info *device)
 void spctrm_scn_wireless_bw80_channel_score (struct device_info *device) 
 {
     int j;
+    int channel_num;
+    int bw;
+    uint64_t bitmap_2G,bitmap_5G;
 
     if (device == NULL) {
         debug("param error");
         return ;
     } 
 
-	for (j = 0; j < g_input.channel_num / 4; j++) {
+    channel_num = spctrm_scn_wireless_country_channel(BW_80,bitmap_2G,bitmap_5G,PLATFORM_5G);
+	for (j = 0; j < channel_num; j++) {
 		device->bw80_channel[j] = device->channel_info[4 * j];
         /* bw80底噪 */
 		device->bw80_channel[j].floornoise = MAX(MAX(MAX(device->channel_info[4 * j].floornoise,

@@ -15,6 +15,7 @@ struct country_channel_info {
     int channel;
 };
 
+int spctrm_scn_wireless_get_country_channel_bwlist(uint8_t *bw_bitmap);
 void spctrm_scn_wireless_wds_state();
 int spctrm_scn_wireless_channel_info(struct channel_info *info,int band);
 double spctrm_scn_wireless_channel_score(struct channel_info *info);
