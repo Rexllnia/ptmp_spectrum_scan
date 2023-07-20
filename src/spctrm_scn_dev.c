@@ -1,7 +1,7 @@
 #include "spctrm_scn_dev.h"
 
 extern struct user_input g_input;
-
+extern int g_status;
 int spctrm_scn_dev_list_cmp(struct device_list *src_list,struct device_list *dest_list) {
 
     int i,count;

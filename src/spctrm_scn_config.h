@@ -5,7 +5,7 @@
 #include "spctrm_scn_common.h"
 
 
-#define AIRMETRO460
+
 
 #define SN_LEN 14
 
@@ -46,6 +46,7 @@
 #define AP_MODE  0
 #define CPE_MODE 1
 unsigned char g_mode;
+
 
 #define debug(...)  do {\
                     printf("file : %s line: %d func: %s -->",__FILE__,__LINE__,__func__); \

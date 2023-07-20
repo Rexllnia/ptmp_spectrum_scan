@@ -26,6 +26,6 @@ int spctrm_scn_wireless_change_channel(int channel);
 void *spctrm_scn_wireless_ap_scan_thread();
 void *spctrm_scn_wireless_cpe_scan_thread();
 int spctrm_scn_wireless_country_channel(int bw,uint64_t *bitmap_2G,uint64_t *bitmap_5G,int band);
-
+int spctrm_scn_wireless_check_status(char *path);
 #endif
 

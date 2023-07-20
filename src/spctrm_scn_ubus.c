@@ -14,14 +14,14 @@
 #include "spctrm_scn_ubus.h"
 
 static int scan(struct ubus_context *ctx, struct ubus_object *obj,
-		      struct ubus_request_data *req, const char *method,
-		      struct blob_attr *msg);
+              struct ubus_request_data *req, const char *method,
+              struct blob_attr *msg);
 static int get(struct ubus_context *ctx, struct ubus_object *obj,
-		      struct ubus_request_data *req, const char *method,
-		      struct blob_attr *msg);
+              struct ubus_request_data *req, const char *method,
+              struct blob_attr *msg);
 static int realtime_get(struct ubus_context *ctx, struct ubus_object *obj,
-		      struct ubus_request_data *req, const char *method,
-		      struct blob_attr *msg);
+              struct ubus_request_data *req, const char *method,
+              struct blob_attr *msg);
 static void add_channel_info_blobmsg(struct blob_buf *buf,struct channel_info *channel_info,int channel_num);
 static void add_timestamp_blobmsg(struct blob_buf *buf,time_t *timestamp);
 static void add_device_info_blobmsg(struct blob_buf *buf,struct device_info *device,int is_real_time);
@@ -433,6 +433,7 @@ static void add_avg_score_list_blobmsg(struct blob_buf *buf,struct device_list *
         }    
         blobmsg_close_array(buf,bw40_list_obj);
     } 
+
     if ((bw_bitmap & 4) == 4) {
         bw80_list_obj = blobmsg_open_array(buf,"bw80");
         memset(channel_avg_score,0,sizeof(channel_avg_score));
@@ -467,7 +468,7 @@ static void add_avg_score_list_blobmsg(struct blob_buf *buf,struct device_list *
         blobmsg_close_array(buf,bw80_list_obj);
     }
 
-
+    debug("");
     blobmsg_close_table(buf,avg_score_table_obj);
     
 }
@@ -517,7 +518,7 @@ static void add_bw20_best_channel_blobmsg(struct blob_buf *buf, struct device_li
 
 static void add_bw40_best_channel_blobmsg(struct blob_buf *buf, struct device_list *list)
 {
-    void *const bw40_table = blobmsg_open_table(buf, "bw_40");
+    void *bw40_table;
     int best_channel_ptr;
     int j, i;
     double channel_avg_score[MAX_BAND_5G_CHANNEL_NUM];
@@ -537,6 +538,7 @@ static void add_bw40_best_channel_blobmsg(struct blob_buf *buf, struct device_li
     } 
     debug("has bw 40");
 
+    bw40_table = blobmsg_open_table(buf, "bw_40");
     memset(channel_avg_score, 0, MAX_BAND_5G_CHANNEL_NUM * sizeof(double));
 
     for (j = 0; j < g_input.channel_num / 2; j++) {
@@ -568,7 +570,7 @@ static void add_bw40_best_channel_blobmsg(struct blob_buf *buf, struct device_li
 
 static void add_bw80_best_channel_blobmsg(struct blob_buf *buf, struct device_list *list)
 {
-    void *const bw80_table = blobmsg_open_table(buf, "bw_80");
+    void * bw80_table;
     int best_channel_ptr;
     struct channel_info bw80_channel[9]; /* MAX_BAND_5G_CHANNEL_NUM / 4 */
     int j, i;
@@ -589,7 +591,7 @@ static void add_bw80_best_channel_blobmsg(struct blob_buf *buf, struct device_li
         return;
     } 
     debug("has bw 80");
-
+    bw80_table = blobmsg_open_table(buf, "bw_80");
     memset(channel_avg_score, 0, MAX_BAND_5G_CHANNEL_NUM * sizeof(double));
 
     for (j = 0; j < g_input.channel_num / 4; j++) {
@@ -700,7 +702,7 @@ scan_not_start:
     ubus_complete_deferred_request(ctx, &req->req, 0);
 
     free(req);
-    debug("return");
+    debug(" scan_not_start return");
     return;
 
 scan_timeout:
@@ -768,6 +770,7 @@ static int scan(struct ubus_context *ctx, struct ubus_object *obj,
 
     blobmsg_parse(scan_policy, ARRAY_SIZE(scan_policy), tb, blob_data(msg), blob_len(msg));
 
+    debug("g_status %d",g_status);
     if (g_status == SCAN_BUSY) {
         len = sizeof(*hreq) + sizeof(msgstr) + 1;
         hreq = calloc(1, len);
@@ -957,29 +960,6 @@ static int get(struct ubus_context *ctx, struct ubus_object *obj,
     uloop_timeout_set(&hreq->timeout, 1000); /* 1s后执行回调 */
 
     return 0;
-}
-static void status_timer_cb(struct uloop_timeout *t) 
-{
-    debug("");
-    if (g_status == SCAN_BUSY) {
-        uloop_timeout_set(&status_timer,700);
-    } else {
-        pthread_cancel(&pid1);
-        debug("pid1 exit");
-        if (g_mode == AP_MODE) {
-            g_mode = CPE_MODE;
-            if ((pthread_create(&pid1, NULL, spctrm_scn_wireless_cpe_scan_thread, NULL)) != 0) {
-                return;
-            }  
-        } else if (g_mode == CPE_MODE) {
-            g_mode = AP_MODE;
-            if ((pthread_create(&pid1, NULL, spctrm_scn_wireless_ap_scan_thread, NULL)) != 0) {
-                return;
-            }
-        }
-
-    }
- 
 }
 static void mode_switch_notify(struct ubus_context *ctx, struct ubus_object *obj,
             struct ubus_request_data *req, const char *method,

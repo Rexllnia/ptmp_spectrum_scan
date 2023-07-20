@@ -21,6 +21,115 @@ extern pthread_mutex_t g_scan_schedule_mutex;
 extern sem_t g_semaphore;
 time_t g_current_time;
 
+int spctrm_scn_wireless_set_current_channel_info(struct channel_info *current_channel_info) 
+{
+    json_object *root;
+    char temp[128];
+
+    if (access("/etc/spectrum_scan/current_channel_info",F_OK) == FAIL) {
+        debug("not exit");
+        creat("/etc/spectrum_scan/current_channel_info",0777);
+    }
+
+    root = json_object_new_object();
+    if (root == NULL) {
+        return FAIL;
+    }
+    sprintf(temp,"%d",current_channel_info->channel);
+    json_object_object_add(root,"current_channel",json_object_new_string(temp));
+    sprintf(temp,"%d",current_channel_info->bw);
+    json_object_object_add(root,"current_bw",json_object_new_string(temp));
+    json_object_to_file("/etc/spectrum_scan/current_channel_info",root);
+    json_object_put(root);
+
+    return SUCCESS;
+}
+int spctrm_scn_wireless_get_current_channel_info (struct channel_info *current_channel_info) 
+{
+    json_object *root;
+    json_object *current_channel_obj,*current_bw_obj;
+    char *current_channel_str,*current_bw_str;
+
+    root = json_object_from_file("/etc/spectrum_scan/current_channel_info");
+    if (root == NULL) {
+        return FAIL;
+    }
+
+    current_channel_obj = json_object_object_get(root,"current_channel");
+    if (current_channel_obj == NULL) {
+        json_object_put(root);
+        return FAIL;
+    }
+
+    current_channel_str = json_object_get_string(current_channel_obj);
+    if (current_channel_str == NULL) {
+        json_object_put(root);
+        return FAIL;
+    }
+    current_channel_info->channel = atoi(current_channel_str);
+
+    current_bw_obj = json_object_object_get(root,"current_bw");
+    if (current_bw_obj == NULL) {
+        json_object_put(root);
+        return FAIL;
+    }
+    current_bw_str = json_object_get_string(current_bw_obj);
+    if (current_bw_str == NULL) {
+        json_object_put(root);
+        return FAIL;   
+    }
+    current_channel_info->bw = atoi(current_bw_str);
+
+    return SUCCESS;
+}
+int spctrm_scn_wireless_check_status(char *path) 
+{
+    json_object *root;
+    json_object *status_obj,*current_channel_obj,*current_bw_obj;
+    char *rbuf;
+    char *status_str;
+    int status;
+    struct channel_info current_channel_info;
+    
+    debug("file exit");
+    root = json_object_from_file(path);
+    if (root == NULL) {
+        return FAIL;
+    }
+
+    status_obj = json_object_object_get(root,"status_code");
+    if (status_obj == NULL) {
+        json_object_put(root);
+        return FAIL;
+    }
+    status_str = json_object_get_string(status_obj);
+    if (status_str == NULL) {
+        json_object_put(root);
+        return FAIL;
+    }    
+    debug("%s",status_str);
+    status = atoi(status_str);
+    if (status == SCAN_IDLE) {
+        debug("SCAN_IDLE");
+        g_status = status;
+    } else if (status == SCAN_BUSY) {
+        debug("SCAN_BUSY");
+        g_status = SCAN_ERR;
+        spctrm_scn_wireless_get_current_channel_info(&current_channel_info);
+        spctrm_scn_wireless_change_channel(current_channel_info.channel);
+        spctrm_scn_wireless_change_bw(current_channel_info.bw);
+        status_obj = json_object_new_string("-1");
+        json_object_object_add(root,"status",status_obj);
+        json_object_to_file(path,root);
+        json_object_put(root);    
+    } else if (status == SCAN_ERR) {
+        debug("SCAN_ERR");
+        g_status = status;
+    }
+
+    return SUCCESS;
+}
+
 void spctrm_scn_wireless_change_bw(int bw)
 {
     switch (bw)
@@ -324,11 +433,13 @@ void *spctrm_scn_wireless_ap_scan_thread()
     while (1) {
         sem_wait(&g_semaphore);
         if (g_status == SCAN_BUSY) {
+            
             /* timestamp */
             g_current_time = time(NULL);
             debug("AP SCAN START");
             spctrm_scn_wireless_channel_info(&current_channel_info,PLATFORM_5G);
             spctrm_scn_wireless_change_bw(BW_20);
+            spctrm_scn_wireless_set_current_channel_info(&current_channel_info);
             sleep(2);
             memset(realtime_channel_info_5g,0,sizeof(realtime_channel_info_5g));
             for (g_scan_schedule = 0,j = 0,i = 0; i < sizeof(uint64_t) * ONE_BYTE; i++) {
@@ -651,7 +762,7 @@ void channel_scan(struct channel_info *input,int scan_time)
 
     err_count = 0;
     for (i = 0 ;i < scan_time ;i++) {
-        sleep(1);
+        // sleep(1);
         spctrm_scn_wireless_channel_info(&info[i],PLATFORM_5G);
         timestamp[i] = time(NULL);
         debug("current channel %d",info[i].channel);
@@ -781,7 +892,7 @@ void spctrm_scn_wireless_bw40_channel_score (struct device_info *device)
     }
 
     //调country channel 
-    channel_num = spctrm_scn_wireless_country_channel(BW_40,bitmap_2G,bitmap_5G,PLATFORM_5G);
+    channel_num = spctrm_scn_wireless_country_channel(BW_40,&bitmap_2G,&bitmap_5G,PLATFORM_5G);
 
     debug("g_input.channel_num %d ",channel_num);
 	for (j = 0; j < channel_num / 2; j++) {
@@ -809,7 +920,7 @@ void spctrm_scn_wireless_bw80_channel_score (struct device_info *device)
         return ;
     } 
 
-    channel_num = spctrm_scn_wireless_country_channel(BW_80,bitmap_2G,bitmap_5G,PLATFORM_5G);
+    channel_num = spctrm_scn_wireless_country_channel(BW_80,&bitmap_2G,&bitmap_5G,PLATFORM_5G);
 	for (j = 0; j < channel_num; j++) {
 		device->bw80_channel[j] = device->channel_info[4 * j];
         /* bw80底噪 */

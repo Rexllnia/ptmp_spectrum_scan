@@ -62,10 +62,11 @@ int main(int argc, char **argv)
     g_input.scan_time = MIN_SCAN_TIME;
     g_status = SCAN_NOT_START;
 	g_input.channel_bitmap = 0;
-    spctrm_scn_wireless_wds_state ();
+    spctrm_scn_wireless_wds_state();
     pthread_mutex_init(&g_mutex, NULL);
     pthread_mutex_init(&g_scan_schedule_mutex,NULL);
     pthread_mutex_init(&g_finished_device_list_mutex,NULL);
+
 
     spctrm_scn_common_cmd("mkdir /tmp/spectrum_scan",NULL);
     fp = fopen("/tmp/spectrum_scan/curl_pid","w+");
@@ -76,8 +77,18 @@ int main(int argc, char **argv)
     fprintf(fp,"%d",getpid());
     fclose(fp);
 
+
+    
     if (g_mode == AP_MODE) {
+        
+        if (access("/etc/spectrum_scan_cache",F_OK) != FAIL) {
+            debug("file exit");
+            // spctrm_scn_wireless_check_status("/etc/spectrum_scan_cache");
+        } else {
+            creat("/etc/spectrum_scan_cache",0777);
+        }
         debug("ap mode");
+        debug("g_status %d",g_status);
         if ((pthread_create(&pid1, NULL, spctrm_scn_wireless_ap_scan_thread, NULL)) != 0) {
 
             return 0;
