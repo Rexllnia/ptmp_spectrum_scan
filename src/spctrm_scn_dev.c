@@ -7,7 +7,7 @@ int spctrm_scn_dev_list_cmp(struct device_list *src_list,struct device_list *des
     int i,count;
     struct device_info *p;
     count = 0;
-    
+
     if (src_list == NULL || dest_list == NULL) {
         return FAIL;
     }
@@ -51,6 +51,7 @@ int spctrm_scn_dev_find_ap(struct device_list *device_list)
     }
     return FAIL;
 }
+
 void spctrm_scn_dev_reset_stat(struct device_list *list) {
     struct device_info *p;
     int i;
@@ -62,7 +63,6 @@ void spctrm_scn_dev_reset_stat(struct device_list *list) {
         p->finished_flag = NOT_FINISH;
     }
 }
-
 
 int spctrm_scn_dev_find_by_sn(struct device_list *device_list,char *series_no)
 {
@@ -80,16 +80,16 @@ int spctrm_scn_dev_find_by_sn(struct device_list *device_list,char *series_no)
     return FAIL;
 }
 int spctrm_scn_dev_chk_stat(struct device_list *device_list) {
-    
+
     struct device_info *p;
     int i;
 
     if (device_list == NULL) {
         return FAIL;
     }
-    
+
     list_for_each_device(p, i, device_list) {
-        debug("mac:%x p->finished_flag %d",p->mac,p->finished_flag);
+        SPCTRM_SCN_DBG_FILE("\nmac:%x p->finished_flag %d",p->mac,p->finished_flag);
         if (p->finished_flag == NOT_FINISH) {
             return FAIL;
         }
@@ -111,10 +111,10 @@ int spctrm_scn_dev_wds_list(struct device_list *device_list)
     json_object *list_pair_elem;
 
     if (device_list == NULL) {
-        debug("device_list NULL");
+        SPCTRM_SCN_DBG_FILE("\ndevice_list NULL");
         return FAIL;
     }
-    
+
     spctrm_scn_common_cmd("dev_sta get -m wds_list_all",&rbuf);
 
     rbuf_root = json_tokener_parse(rbuf);
@@ -130,9 +130,9 @@ int spctrm_scn_dev_wds_list(struct device_list *device_list)
         return FAIL;
     }
 
-    debug("");
+    SPCTRM_SCN_DBG_FILE("\n");
     spctrm_scn_common_get_sn(sn);
-    debug("sn %s",sn);
+    SPCTRM_SCN_DBG_FILE("\nsn %s",sn);
 
     find_flag = 0;
     for (i = 0;i < json_object_array_length(list_all_obj);i++) {
@@ -168,7 +168,7 @@ int spctrm_scn_dev_wds_list(struct device_list *device_list)
                 return FAIL;
             }
             if (strcmp(json_object_get_string(sn_obj),sn) == 0) {
-                debug("%d",i);
+                SPCTRM_SCN_DBG_FILE("\n%d",i);
                 find_flag = 1;
                 break;
             }
@@ -177,12 +177,12 @@ int spctrm_scn_dev_wds_list(struct device_list *device_list)
             break;
         }
     }
-    debug("%d",i);
+    SPCTRM_SCN_DBG_FILE("\n%d",i);
 
     list_all_elem = json_object_array_get_idx(list_all_obj,i);
     if (list_all_elem == NULL) {
         free(rbuf);
-        json_object_put(rbuf_root);	
+        json_object_put(rbuf_root);
         perror("list_all_elem");
         return FAIL;
     }
@@ -190,7 +190,7 @@ int spctrm_scn_dev_wds_list(struct device_list *device_list)
     if (list_pair_obj == NULL) {
         free(rbuf);
         json_object_put(rbuf_root);
-        debug("list_pair_obj");
+        SPCTRM_SCN_DBG_FILE("\nlist_pair_obj");
         return FAIL;
     }
     device_list->list_len = json_object_array_length(list_pair_obj);
@@ -198,7 +198,7 @@ int spctrm_scn_dev_wds_list(struct device_list *device_list)
     if (device_list->list_len > MAX_DEVICE_NUM) {
         free(rbuf);
         json_object_put(rbuf_root);
-        debug("over MAX_DEVICE_NUM");
+        SPCTRM_SCN_DBG_FILE("\nover MAX_DEVICE_NUM");
         return FAIL;
     }
 
@@ -208,21 +208,21 @@ int spctrm_scn_dev_wds_list(struct device_list *device_list)
         if (sn_obj == NULL) {
             free(rbuf);
             json_object_put(rbuf_root);
-            debug("sn_obj");
+            SPCTRM_SCN_DBG_FILE("\nsn_obj");
             return FAIL;
         }
         role_obj = json_object_object_get(list_pair_elem,"role");
         if (role_obj == NULL) {
             free(rbuf);
             json_object_put(rbuf_root);
-            debug("role_obj");
+            SPCTRM_SCN_DBG_FILE("\nrole_obj");
             return FAIL;
         }
         mac_obj = json_object_object_get(list_pair_elem,"mac");
         if (mac_obj == NULL) {
             free(rbuf);
             json_object_put(rbuf_root);
-            debug("mac_obj");
+            SPCTRM_SCN_DBG_FILE("\nmac_obj");
             return FAIL;
         }
         strcpy(device_list->device[i].series_no,json_object_get_string(sn_obj));

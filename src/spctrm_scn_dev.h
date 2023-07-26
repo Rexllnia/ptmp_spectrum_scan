@@ -37,7 +37,7 @@ struct device_list {
     struct device_info device[MAX_DEVICE_NUM];
 };
 
-/* 
+/*
 p: type device_info loop
 i: counter
 dev_list : type device_list

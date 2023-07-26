@@ -13,7 +13,7 @@ define Package/$(PKG_NAME)
 	SECTION:=utils
 	CATEGORY:=Milesight
 	TITLE:=spectrum_scan utility
-	DEPENDS:=+libuci +libubus +libubox +libpthread +libjson-c
+	DEPENDS:=+libuci +libubus +libubox +libdebug +libpthread +libjson-c
 endef
  
 define Package/$(PKG_NAME)/description
@@ -39,6 +39,7 @@ endef
  
 define Package/$(PKG_NAME)/install	
 	$(INSTALL_DIR) $(1)/tmp/spectrum_scan/
+	$(INSTALL_DIR) $(1)/etc/spectrum_scan/
 	$(INSTALL_DIR) $(1)/etc/init.d
 	$(INSTALL_BIN) ./files/spectrum_scan.init $(1)/etc/init.d/spectrum_scan
 	$(INSTALL_DIR) $(1)/usr/local/lua/dev_sta/

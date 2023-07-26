@@ -1,6 +1,5 @@
 #include "spctrm_scn_common.h"
 
-
 char spctrm_scn_common_read_file(char *name,char *buf,char len) {
     int fd;
 
@@ -20,6 +19,7 @@ char spctrm_scn_common_read_file(char *name,char *buf,char len) {
     }
     return FAIL;
 }
+
 __u32 spctrm_scn_common_mac_2_nodeadd(unsigned char *mac_src)
 {
     unsigned int mac[ETH_ALEN];
@@ -46,7 +46,8 @@ __u32 spctrm_scn_common_mac_2_nodeadd(unsigned char *mac_src)
     sscanf(buf,"%x",&tmp);
     return tmp;
 }
-int spctrm_scn_common_cmd(char *cmd,char **rbuf) 
+
+int spctrm_scn_common_cmd(char *cmd,char **rbuf)
 {
     FILE *fp;
 
@@ -58,7 +59,7 @@ int spctrm_scn_common_cmd(char *cmd,char **rbuf)
     if (fp == NULL) {
         return FAIL;
     }
-    
+
     if (rbuf == NULL) {
         pclose(fp);
         return SUCCESS;
@@ -68,12 +69,13 @@ int spctrm_scn_common_cmd(char *cmd,char **rbuf)
         pclose(fp);
         return FAIL;
     }
-    
-    
+
+
     fread(*rbuf,sizeof(char),MAX_POPEN_BUFFER_SIZE,fp);
     pclose(fp);
     return SUCCESS;
 }
+
 void spctrm_scn_common_get_sn(char *sn)
 {
     int ret;
@@ -93,6 +95,7 @@ void spctrm_scn_common_get_sn(char *sn)
     strncpy(sn, res, SN_LEN);
     return;
 }
+
 int spctrm_scn_common_uci_anonymous_get(char *file, char *type, char *name, char *option, char *buf, int len)
 {
     struct uci_context *ctx = NULL;
@@ -141,7 +144,7 @@ int spctrm_scn_common_uci_anonymous_get(char *file, char *type, char *name, char
         if (str != NULL) {
             strncpy(buf, str, len);
             ret = SUCCESS;
-			break;							
+            break;
         }
     }
 

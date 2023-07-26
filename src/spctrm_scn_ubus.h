@@ -14,7 +14,7 @@
 #include "spctrm_scn_dev.h"
 #include "spctrm_scn_tipc.h"
 
-#define MAX_CHANNEL_NUM 200 
+#define MAX_CHANNEL_NUM 200
 
 enum {
     BAND,

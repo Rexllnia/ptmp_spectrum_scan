@@ -51,7 +51,7 @@ function module_default_config_get()
 end
 
 function module_set(param)
-    local param_tab 
+    local param_tab
     local config_tab
     -- Establish connection
     param_tab = cjson_safe.decode(param)
@@ -69,8 +69,11 @@ end
 
 --dev_sta需要有，dev_config ac_config不调用这个
 function module_get(param)
-    local param_tab 
+    local param_tab
     local config_tab
+    local current_status_tab
+    local current_status_json
+    local config_json
     -- Establish connection
     param_tab = cjson_safe.decode(param)
     local res
@@ -78,26 +81,47 @@ function module_get(param)
     if not conn then
         error("Failed to connect to ubusd")
     end
-    local status = conn:call("channel_score", "get",{})
 
-
-    if  status["status_code"] == "0" then
-        config_tab = file_read(config_file)
-    elseif status["status_code"] == "2" then
-        config_tab = cjson_safe.encode(status)
-        file_write(config_file,config_tab)
-        res = conn:call("rlog", "upload_stream",{module_name = "spectrumScan",server = "http://apidemo.rj.link/service/api/warnlog?sn=MACCEG20WJL01",data = "12345" })
-    else 
-        config_tab = cjson_safe.encode(status)         
+    current_status_tab = file_read("/etc/spectrum_scan_cache")
+    if current_status_tab == "" then
+        local status = conn:call("channel_score", "get",{})
+        if  status["status_code"] == "0" then
+            config_tab = file_read(config_file)
+        elseif status["status_code"] == "2" or status["status_code"] == "3" then
+            config_tab = cjson_safe.encode(status)
+            file_write(config_file,config_tab)
+            res = conn:call("rlog", "upload_stream",{module_name = "spectrumScan",server = "http://apidemo.rj.link/service/api/warnlog?sn=MACCEG20WJL01",data = config_tab })
+        else
+            config_tab = cjson_safe.encode(status)
+        end
+        -- Close connection
+        conn:close()
+        return(config_tab)
     end
-    -- Close connection
-    conn:close()
+    current_status_json = cjson_safe.decode(current_status_tab)
+
+    if current_status_json["status_code"] == "-1" then
+        config_tab = file_read(config_file)
+    else
+        local status = conn:call("channel_score", "get",{})
+        if  status["status_code"] == "0" then
+            config_tab = file_read(config_file)
+        elseif status["status_code"] == "2" or status["status_code"] == "3" then
+            config_tab = cjson_safe.encode(status)
+            file_write(config_file,config_tab)
+            res = conn:call("rlog", "upload_stream",{module_name = "spectrumScan",server = "http://apidemo.rj.link/service/api/warnlog?sn=MACCEG20WJL01",data = config_tab })
+        else
+            config_tab = cjson_safe.encode(status)
+        end
+        -- Close connection
+        conn:close()
+    end
 
     return(config_tab)
 end
 
 function module_add(param)
-    local param_tab 
+    local param_tab
     local config_tab
 
     return (param)

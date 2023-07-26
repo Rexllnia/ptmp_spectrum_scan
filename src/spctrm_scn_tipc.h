@@ -18,10 +18,11 @@
 #include <linux/netlink.h>
 #include <linux/socket.h>
 #include <pthread.h>
+#include <libubox/md5.h>
 #include "spctrm_scn_config.h"
 #include "spctrm_scn_dev.h"
 
-#define SERVER_TYPE         103    
+#define SERVER_TYPE         103
 #define SERVER_TYPE_SCAN    18888
 #define SERVER_TYPE_GET     102
 #define SERVER_TYPE_GET_REPLY  104

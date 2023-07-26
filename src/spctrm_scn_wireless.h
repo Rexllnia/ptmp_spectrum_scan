@@ -3,7 +3,6 @@
 #define _SPCTRM_SCN_WIRELESS_H_
 
 #include <json-c/json.h>
-#include "lib_unifyframe.h"
 #include "spctrm_scn_config.h"
 #include "spctrm_scn_dev.h"
 
@@ -15,6 +14,7 @@ struct country_channel_info {
     int channel;
 };
 
+void spctrm_scn_wireless_set_status();
 int spctrm_scn_wireless_get_country_channel_bwlist(uint8_t *bw_bitmap);
 void spctrm_scn_wireless_wds_state();
 int spctrm_scn_wireless_channel_info(struct channel_info *info,int band);
@@ -27,5 +27,8 @@ void *spctrm_scn_wireless_ap_scan_thread();
 void *spctrm_scn_wireless_cpe_scan_thread();
 int spctrm_scn_wireless_country_channel(int bw,uint64_t *bitmap_2G,uint64_t *bitmap_5G,int band);
 int spctrm_scn_wireless_check_status(char *path);
+void spctrm_scn_wireless_change_bw(int bw);
+int spctrm_scn_wireless_restore_device_info(char *path,struct device_list *device_list);
+
 #endif
 

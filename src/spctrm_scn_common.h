@@ -23,7 +23,6 @@
 #include <uci.h>
 #include "spctrm_scn_config.h"
 
-
 __u32 spctrm_scn_common_mac_2_nodeadd(unsigned char *mac_src);
 char spctrm_scn_common_read_file(char *name,char *buf,char len);
 int spctrm_scn_common_cmd(char *cmd,char **rbuf);

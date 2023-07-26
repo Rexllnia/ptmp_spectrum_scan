@@ -2,14 +2,13 @@
 #ifndef _SPCTRM_SCN_CONFIG_H_
 #define _SPCTRM_SCN_CONFIG_H_
 
+#include <libdebug/libdebug.h>
 #include "spctrm_scn_common.h"
-
-
-
+#include "spctrm_scn_debug.h"
 
 #define SN_LEN 14
 
-#define MIN_SCAN_TIME 15 
+#define MIN_SCAN_TIME 15
 #define MAX_SCAN_TIME 60
 #define ONE_BYTE 8
 #define EXPIRE_TIME 14
@@ -46,13 +45,6 @@
 #define AP_MODE  0
 #define CPE_MODE 1
 unsigned char g_mode;
-
-
-#define debug(...)  do {\
-                    printf("file : %s line: %d func: %s -->",__FILE__,__LINE__,__func__); \
-                    printf(__VA_ARGS__);\
-                    printf("\r\n"); \
-} while(0)
 
 struct user_input {
     uint64_t channel_bitmap;
