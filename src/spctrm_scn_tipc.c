@@ -2,7 +2,7 @@
 #include "spctrm_scn_tipc.h"
 
 static void server_type_scan_reply_cb(tipc_recv_packet_head_t *head,char *pkt);
-
+extern time_t g_current_time ;
 extern volatile int g_status;
 extern unsigned char g_mode;
 extern struct user_input g_input;
@@ -11,7 +11,7 @@ extern struct channel_info g_channel_info_5g[MAX_BAND_5G_CHANNEL_NUM];
 extern struct channel_info realtime_channel_info_5g[MAX_BAND_5G_CHANNEL_NUM];
 extern pthread_mutex_t g_mutex,g_finished_device_list_mutex;
 extern sem_t g_semaphore;
-
+__u32 g_ap_instant;
 static sem_t receive_finish_semaphore;
 
 int spctrm_scn_tipc_send_start_msg(struct device_list *list,int wait_sec)
@@ -129,6 +129,7 @@ int spctrm_scn_tipc_send(__u32 dst_instance,__u32 type,size_t payload_size,char 
     head->instant = src_instant;
     head->type = type;
     head->payload_size = payload_size;
+    head->timestamp = g_current_time;
 
     sd = socket(AF_TIPC, SOCK_RDM, 0);
     if (sd < 0) {
@@ -155,74 +156,6 @@ int spctrm_scn_tipc_send(__u32 dst_instance,__u32 type,size_t payload_size,char 
     close(sd);
     return SUCCESS;
 }
-typedef struct spctrm_scn_tipc_send_receive_arg {
-    __u32 dst_instance;
-    __u32 type;
-    size_t payload_size;
-    char *payload;
-} spctrm_scn_tipc_send_receive_arg_t;
-
-static void spctrm_scn_tipc_send_receive_thread(spctrm_scn_tipc_send_receive_arg_t *arg) {
-    int sd;
-    struct sockaddr_tipc server_addr;
-    struct timeval timeout={4,0};
-    __u32 src_instant = 0;
-    char mac[20];
-    char *pkt;
-    tipc_recv_packet_head_t *head;
-    size_t pkt_size;
-    char recv_buf[4];
-    int j,retry;
-
-    pkt_size = sizeof(tipc_recv_packet_head_t) + arg->payload_size;
-    pkt = (char*)malloc(pkt_size * sizeof(char));
-    if (pkt == NULL) {
-        SPCTRM_SCN_DBG_FILE("\nFAIL");
-        return;
-    }
-    memset(mac,0,sizeof(mac));
-    spctrm_scn_common_read_file("/proc/rg_sys/sys_mac",mac,sizeof(mac) - 1);
-    src_instant = spctrm_scn_common_mac_2_nodeadd(mac);
-
-    memcpy(pkt+sizeof(tipc_recv_packet_head_t),arg->payload,arg->payload_size);
-    head = (tipc_recv_packet_head_t *)pkt;
-
-    head->instant = src_instant;
-    head->type = arg->type;
-    head->payload_size = arg->payload_size;
-
-    sd = socket(AF_TIPC, SOCK_RDM, 0);
-    if (sd < 0) {
-        SPCTRM_SCN_DBG_FILE("\nFAIL");
-        free(pkt);
-        return;
-    }
-    server_addr.family = AF_TIPC;
-    server_addr.addrtype = TIPC_ADDR_NAME;
-    server_addr.addr.name.name.type = SERVER_TYPE;
-    server_addr.addr.name.name.instance = ntohl(arg->dst_instance);
-    server_addr.addr.name.domain = 0;
-
-    setsockopt(sd,SOL_SOCKET,SO_SNDTIMEO,(char*)&timeout,sizeof(struct timeval));
-    for (retry = 0;retry < 10;retry++) {
-        if (0 > sendto(sd, pkt, pkt_size, 0,
-                        (struct sockaddr*)&server_addr, sizeof(server_addr))) {
-            perror("Client: failed to send");
-            free(pkt);
-            close(sd);
-            return;
-        }
-
-        recv(sd,recv_buf,sizeof(recv_buf),0);
-        printf("%s",recv_buf);
-        if (strcmp(recv_buf,"ack") == 0) {
-            break;
-        }
-    }
-
-    free(pkt);
-    close(sd);
-}
 
 void *spctrm_scn_tipc_thread()
 {
@@ -234,12 +167,9 @@ void *spctrm_scn_tipc_thread()
     char *pkt;
     tipc_recv_packet_head_t head;
     size_t pkt_size;
-    char outbuf[BUF_SIZE] = "Uh ?";
     struct timeval timeout={4,0};
     unsigned char mac[20];
     __u32 instant;
-    pid_t pid;
-    spctrm_scn_tipc_send_receive_arg_t arg;
 
     SPCTRM_SCN_DBG_FILE("\n****** TIPC server program started ******\n\n");
 
@@ -264,6 +194,7 @@ void *spctrm_scn_tipc_thread()
 
     if (0 != bind(sd, (struct sockaddr *)&server_addr, sizeof(server_addr))) {
         SPCTRM_SCN_DBG_FILE("\nServer: failed to bind port name\n");
+        close(sd);
         return NULL;
     }
 
@@ -302,20 +233,18 @@ void *spctrm_scn_tipc_thread()
                 spctrm_scn_tipc_send(head.instant,SERVER_TYPE_GET_REPLY,sizeof(g_channel_info_5g),(char *)g_channel_info_5g);
             }
         } else if (head.type == SERVER_TYPE_GET_REPLY) {
-            sendto(sd,"ack",strlen("ack") + 1,0,&client_addr,&alen);
-            server_type_scan_reply_cb(&head,pkt);
+            SPCTRM_SCN_DBG_FILE("\nSERVER_TYPE_GET_REPLY %x",head.instant);
+            SPCTRM_SCN_DBG_FILE("\nSERVER_TYPE_GET_REPLY TIME %x",head.timestamp);
+            if (head.timestamp == g_current_time) {
+                server_type_scan_reply_cb(&head,pkt);
+            }
         } else if (head.type == SERVER_TYPE_AUTO_GET) {
-            SPCTRM_SCN_DBG_FILE("\nAUTO GET");
+            SPCTRM_SCN_DBG_FILE("\nAUTO GET %x",head.instant);
             if (g_status == SCAN_IDLE) {
-                arg.dst_instance = head.instant;
-                arg.type = SERVER_TYPE_GET_REPLY;
-                arg.payload = (char *)g_channel_info_5g;
-                arg.payload_size = sizeof(g_channel_info_5g);
-                pthread_create(&pid,NULL,spctrm_scn_tipc_send_receive_thread,&arg);
-                
-                // spctrm_scn_tipc_send(head.instant,SERVER_TYPE_GET_REPLY,sizeof(g_channel_info_5g),(char *)g_channel_info_5g);
+                spctrm_scn_tipc_send(head.instant,SERVER_TYPE_GET_REPLY,sizeof(g_channel_info_5g),(char *)g_channel_info_5g);
             }
         } else if (head.type == SERVER_TYPE_SCAN) {
+            g_current_time = head.timestamp;
             SPCTRM_SCN_DBG_FILE("\nSERVER_TYPE_SCAN");
             while (1) {
                 SPCTRM_SCN_DBG_FILE("\ng_status %d",g_status);
@@ -341,7 +270,7 @@ void *spctrm_scn_tipc_thread()
     continue;
 clear:
     (void)recvfrom(sd, &head, sizeof(head),0,(struct sockaddr *)&client_addr, &alen);
-
+    
     }
     close(sd);
     return NULL;

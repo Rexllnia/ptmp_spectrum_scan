@@ -70,7 +70,6 @@ int spctrm_scn_common_cmd(char *cmd,char **rbuf)
         return FAIL;
     }
 
-
     fread(*rbuf,sizeof(char),MAX_POPEN_BUFFER_SIZE,fp);
     pclose(fp);
     return SUCCESS;
@@ -90,7 +89,6 @@ void spctrm_scn_common_get_sn(char *sn)
     if (ret != 0) {
         return;
     }
-
 
     strncpy(sn, res, SN_LEN);
     return;

@@ -65,6 +65,4 @@ struct channel_info {
     double rate;
 };
 
-
-
 #endif

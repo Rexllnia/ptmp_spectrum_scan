@@ -46,6 +46,8 @@ volatile int g_status,g_scan_time;
 volatile long g_scan_timestamp;
 extern long g_bitmap_2G,g_bitmap_5G;
 char g_wds_bss[20];
+
+
 pthread_mutex_t g_mutex,g_scan_schedule_mutex,g_finished_device_list_mutex;
 pthread_t pid1, pid2 ,pid3;
 sem_t g_semaphore;
@@ -64,7 +66,14 @@ int main(int argc, char **argv)
     pthread_mutex_init(&g_mutex, NULL);
     pthread_mutex_init(&g_scan_schedule_mutex,NULL);
     pthread_mutex_init(&g_finished_device_list_mutex,NULL);
-    spectrm_scn_debug_init();
+    
+
+    
+    
+
+    if (spectrm_scn_debug_init() == FAIL) {
+        return FAIL;
+    }
 
     spctrm_scn_common_cmd("mkdir /tmp/spectrum_scan",NULL);
     fp = fopen("/tmp/spectrum_scan/curl_pid","w+");
@@ -79,7 +88,7 @@ int main(int argc, char **argv)
         SPCTRM_SCN_DBG_FILE("\nFAIL\n");
         return FAIL;
     }
-
+    spctrm_scn_wireless_multi_user_loss_init();
     if (g_mode == AP_MODE) {
         if (access("/etc/spectrum_scan/current_channel_info",F_OK) == FAIL) {
             creat("/etc/spectrum_scan/current_channel_info",0777);

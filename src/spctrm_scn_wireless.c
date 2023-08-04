@@ -22,6 +22,43 @@ extern sem_t g_semaphore;
 time_t g_current_time;
 extern int g_bw40_channel_num;
 extern int g_bw80_channel_num;
+extern __u32 g_ap_instant;
+extern int g_stream_num;
+double g_multi_user_loss[MAX_DEVICE_NUM + 1];
+
+void spctrm_scn_wireless_multi_user_loss_init()
+{
+    int i,j,k;
+    double temp;
+    
+    temp = 1;
+
+    for (k = 0,i = 0;i < 6 ;i++) {
+        for (j = k;j < (2 << i); j++) {
+            g_multi_user_loss[j] = temp;
+        }
+        k = (2 << i);
+        temp *= 0.75;
+    }
+
+    g_multi_user_loss[MAX_DEVICE_NUM] = 0.24;
+
+    for (i = 0 ; i <= MAX_DEVICE_NUM ;i++) {
+        SPCTRM_SCN_DBG_FILE("%f\r\n",g_multi_user_loss[i]);
+    }
+}
+
+
+void spectrm_scn_debug_device_list(struct device_list* list) 
+{
+    struct device_info *p;
+    int j;
+
+    list_for_each_device(p,j,list) {
+        SPCTRM_SCN_DBG_FILE("SN %s \r\n",p->series_no);
+    }
+}
+
 int spctrm_scn_wireless_get_wds_bss(char *wds_bss)
 {
     json_object *root,*wireless_obj,*wds_bss_obj,*radiolist_obj;
@@ -61,13 +98,10 @@ int spctrm_scn_wireless_get_wds_bss(char *wds_bss)
         }
     }
 
-
-
     strcpy(wds_bss,json_object_get_string(wds_bss_obj));
 
     json_object_put(root);
     return SUCCESS;
-
 
 }
 void spctrm_scn_wireless_set_status() {
@@ -166,6 +200,7 @@ int spctrm_scn_wireless_restore_device_info(char *path,struct device_list *devic
     int i;
     int j,k;
     struct device_info *p;
+
     root = json_object_from_file(path);
     if (root == NULL) {
 
@@ -176,7 +211,6 @@ int spctrm_scn_wireless_restore_device_info(char *path,struct device_list *devic
     device_list->list_len = json_object_array_length(scan_list_obj);
     SPCTRM_SCN_DBG_FILE("%d",device_list->list_len);
     list_for_each_device(p,i,device_list) {
-
         scan_list_elem = json_object_array_get_idx(scan_list_obj,i);
         status_obj = json_object_object_get(scan_list_elem,"status");
         if (status_obj != NULL) {
@@ -278,20 +312,22 @@ int spctrm_scn_wireless_check_status(char *path)
 
 void spctrm_scn_wireless_change_bw(int bw)
 {
-    switch (bw)
-    {
+    char cmd[256];
+
+    switch (bw) {
     case BW_20:
-        spctrm_scn_common_cmd("iwpriv ra0 set HtBw=0",NULL);
+        sprintf(cmd,"iwpriv %s set HtBw=0",g_wds_bss);
         break;
     case BW_40:
-        spctrm_scn_common_cmd("iwpriv ra0 set HtBw=1",NULL);
+        sprintf(cmd,"iwpriv %s set HtBw=1",g_wds_bss);
         break;
     case BW_80:
-        spctrm_scn_common_cmd("iwpriv ra0 set VhtBw=1",NULL);
+        sprintf(cmd,"iwpriv %s set VhtBw=1",g_wds_bss);
         break;
     default:
         break;
     }
+    system(cmd);
 }
 static void print_bits(uint64_t num) {
     int i;
@@ -309,11 +345,15 @@ static void print_bits(uint64_t num) {
 int spctrm_scn_wireless_get_country_channel_bwlist(uint8_t *bw_bitmap)
 {
     int array_len,i;
-    char cmd[MAX_POPEN_BUFFER_SIZE];
     char *rbuf;
     json_object *root;
     json_object *bandwidth_5G_obj,*elem;
     char *bw_str;
+    struct device_info*p;
+    int j;
+    list_for_each_device(p,j,&g_finished_device_list) {
+        SPCTRM_SCN_DBG_FILE("SN %s \r\n",p->series_no);
+    }
 
     if (bw_bitmap == NULL) {
         return FAIL;
@@ -362,14 +402,15 @@ int spctrm_scn_wireless_get_country_channel_bwlist(uint8_t *bw_bitmap)
 
     SPCTRM_SCN_DBG_FILE("\nbw_bitmap %d",*bw_bitmap);
 
-
-
-
-
     if (rbuf != NULL) {
         free (rbuf);
     }
     json_object_put(root);
+
+    list_for_each_device(p,j,&g_finished_device_list) {
+        SPCTRM_SCN_DBG_FILE("SN %s \r\n",p->series_no);
+    }
+
     return SUCCESS;
 }
 int spctrm_scn_wireless_country_channel(int bw,uint64_t *bitmap_2G,uint64_t *bitmap_5G,int band)
@@ -390,7 +431,6 @@ int spctrm_scn_wireless_country_channel(int bw,uint64_t *bitmap_2G,uint64_t *bit
     struct json_object *elem;
     json_object *frequency_obj,*channel_obj;
     char channel[8],frequency[8]; /* 信道字符串 */
-
 
     if (band != PLATFORM_5G && band != PLATFORM_2G) {
         SPCTRM_SCN_DBG_FILE("\n");
@@ -425,7 +465,6 @@ int spctrm_scn_wireless_country_channel(int bw,uint64_t *bitmap_2G,uint64_t *bit
 
     *bitmap_2G = 0;
     *bitmap_5G = 0;
-
 
     rbuf = NULL;
 
@@ -546,8 +585,8 @@ static inline int channel_to_bitmap (int channel)
     if (channel >= 149 && channel <= 181) {
         return (channel-1)/4 - 9;
     }
-    return FAIL;
 
+    return FAIL;
 }
 
 static inline int bitmap_to_channel (int bit_set)
@@ -558,6 +597,7 @@ static inline int bitmap_to_channel (int bit_set)
     if (bit_set >= 28 && bit_set <= 45) {
         return (bit_set + 9) * 4 + 1;
     }
+
     return FAIL;
 }
 
@@ -566,14 +606,14 @@ void *spctrm_scn_wireless_ap_scan_thread()
     int i,j;
     char rlog_str[64],temp[256];
     struct channel_info current_channel_info;
-
+    struct device_info *p;
+    double exp_throughput,multi_user_loss;
+    p = spctrm_scn_dev_find_ap2(&g_finished_device_list);
     SPCTRM_SCN_DBG_FILE("\nAP THREAND START");
     while (1) {
         sem_wait(&g_semaphore);
         if (g_status == SCAN_BUSY) {
             spctrm_scn_wireless_set_status();
-            /* timestamp */
-            g_current_time = time(NULL);
             SPCTRM_SCN_DBG_FILE("\nAP SCAN START");
             spctrm_scn_wireless_channel_info(&current_channel_info,PLATFORM_5G);
             spctrm_scn_wireless_change_bw(BW_20);
@@ -604,9 +644,10 @@ void *spctrm_scn_wireless_ap_scan_thread()
                     memset(rlog_str,0,sizeof(rlog_str));
                     memset(temp,0,sizeof(temp));
 
+                    
                     SPCTRM_SCN_DBG_FILE("\ng_input.channel_bitmap : %llu",g_input.channel_bitmap);
                     realtime_channel_info_5g[j].score = spctrm_scn_wireless_channel_score(&realtime_channel_info_5g[j]);
-                    realtime_channel_info_5g[j].rate = realtime_channel_info_5g[j].score / 100 * 300 * 0.75;
+                    realtime_channel_info_5g[j].rate = realtime_channel_info_5g[j].score / 100 * 230 / g_stream_num * g_multi_user_loss[g_stream_num];
                     SPCTRM_SCN_DBG_FILE("\nscore %f\r\n",realtime_channel_info_5g[j].score);
                     SPCTRM_SCN_DBG_FILE("\n------------------\r\n");
                     j++;
@@ -624,9 +665,8 @@ void *spctrm_scn_wireless_ap_scan_thread()
             i = spctrm_scn_dev_find_ap(&g_device_list);
             g_device_list.device[i].finished_flag = FINISHED;
             if (timeout_func() == FAIL) {
-                SPCTRM_SCN_DBG_FILE( "line : %d func %s g_status : %d,",__LINE__,__func__,g_status);
+                
                 memcpy(g_channel_info_5g,realtime_channel_info_5g,sizeof(realtime_channel_info_5g));
-
                 pthread_mutex_lock(&g_finished_device_list_mutex);
                 memcpy(&g_finished_device_list,&g_device_list,sizeof(struct device_list));
                 SPCTRM_SCN_DBG_FILE("\ng_finished_device_list.list_len %d",g_finished_device_list.list_len);
@@ -644,11 +684,15 @@ void *spctrm_scn_wireless_ap_scan_thread()
                 g_scan_schedule++;
                 pthread_mutex_unlock(&g_scan_schedule_mutex);
             } else {
-                SPCTRM_SCN_DBG_FILE( "line : %d func %s g_status : %d,",__LINE__,__func__,g_status);
+                
+                spectrm_scn_debug_device_list(&g_finished_device_list);
                 memcpy(g_channel_info_5g,realtime_channel_info_5g,sizeof(realtime_channel_info_5g));
 
                 pthread_mutex_lock(&g_finished_device_list_mutex);
                 memcpy(&g_finished_device_list,&g_device_list,sizeof(struct device_list));
+
+                spectrm_scn_debug_device_list(&g_finished_device_list);
+
                 SPCTRM_SCN_DBG_FILE("\ng_finished_device_list.list_len %d",g_finished_device_list.list_len);
                 pthread_mutex_unlock(&g_finished_device_list_mutex);
 
@@ -656,6 +700,16 @@ void *spctrm_scn_wireless_ap_scan_thread()
 
                 pthread_mutex_lock(&g_mutex);
                 SPCTRM_SCN_DBG_FILE("\ng_finished_device_list.list_len %d",g_finished_device_list.list_len);
+
+                list_for_each_device(p,i,&g_finished_device_list) {
+                    if (strcmp(p->role,"ap") != 0) {
+                        for (j = 0;j < g_input.channel_num;j++) {
+                            exp_throughput = spctrm_scn_wireless_get_exp_throughput(p);
+                            SPCTRM_SCN_DBG_FILE("exp_throughput %f\r\n",exp_throughput);
+                            p->channel_info[j].rate = p->channel_info[j].score / 100 * exp_throughput / 2 / g_stream_num * g_multi_user_loss[g_stream_num];
+                        }
+                    }
+                }
                 g_status = SCAN_IDLE;
 
                 g_input.scan_time = MIN_SCAN_TIME; /* restore scan time */
@@ -708,7 +762,7 @@ void *spctrm_scn_wireless_cpe_scan_thread()
 
                     SPCTRM_SCN_DBG_FILE("\n%llu\r\n",g_input.channel_bitmap);
                     realtime_channel_info_5g[j].score = spctrm_scn_wireless_channel_score(&realtime_channel_info_5g[j]);
-                    realtime_channel_info_5g[j].rate = realtime_channel_info_5g[j].score / 100 * 300 * 0.75;
+                    // realtime_channel_info_5g[j].rate = realtime_channel_info_5g[j].score / 100 * 300 * 0.75 / g_stream_num;
                     SPCTRM_SCN_DBG_FILE("\n------------------\r\n");
                     j++;
                 }
@@ -728,8 +782,10 @@ void *spctrm_scn_wireless_cpe_scan_thread()
             memset(realtime_channel_info_5g,0,sizeof(realtime_channel_info_5g));
             g_status = SCAN_IDLE;
             g_input.scan_time = MIN_SCAN_TIME; /* restore scan time */
+        
             pthread_mutex_unlock(&g_mutex);
         }
+
 error:
     if (g_status == SCAN_TIMEOUT) {
             spctrm_scn_wireless_change_bw(current_channel_info.bw);
@@ -810,7 +866,6 @@ int spctrm_scn_wireless_channel_info(struct channel_info *info,int band)
         return FAIL;
     }
 
-
     strtok(rbuf,"\n");
 
     strtok(NULL,":");
@@ -890,6 +945,13 @@ void channel_scan(struct channel_info *input,int scan_time)
     time_t timestamp[MAX_SCAN_TIME];
     struct tm *local_time;
 
+    memset(info,0,sizeof(info));
+    memset(floornoise_temp,0,sizeof(floornoise_temp));
+    memset(obss_util_temp,0,sizeof(obss_util_temp));
+    memset(channel_temp,0,sizeof(channel_temp));
+    memset(utilization_temp,0,sizeof(utilization_temp));
+    memset(timestamp,0,sizeof(timestamp));
+
     if (input == NULL) {
         SPCTRM_SCN_DBG_FILE("\nparam error");
         return;
@@ -904,14 +966,13 @@ void channel_scan(struct channel_info *input,int scan_time)
 
     err_count = 0;
     for (i = 0 ;i < scan_time ;i++) {
-        // sleep(1);
+        sleep(1);
         spctrm_scn_wireless_channel_info(&info[i],PLATFORM_5G);
         timestamp[i] = time(NULL);
         SPCTRM_SCN_DBG_FILE("\ncurrent channel %d",info[i].channel);
     }
 
     input->bw=info[0].bw;
-
 
     for (i = 0 ;i < scan_time ;i++) {
 
@@ -933,8 +994,6 @@ void channel_scan(struct channel_info *input,int scan_time)
 
     return;
 }
-
-
 
 void spctrm_scn_wireless_wds_state()
 {
@@ -1023,59 +1082,113 @@ double spctrm_scn_wireless_channel_score(struct channel_info *info)
 }
 void spctrm_scn_wireless_bw40_channel_score (struct device_info *device)
 {
-    int j;
+    int j,k;
     int bw;
     uint64_t bitmap_2G,bitmap_5G;
+    double exp_throughput,multi_user_loss;
+    struct device_info *p,*low_performance_dev;
 
     if (device == NULL) {
         SPCTRM_SCN_DBG_FILE("\nparam NULL");
         return;
     }
 
-
-
     SPCTRM_SCN_DBG_FILE("\ng_input.channel_num %d ",g_bw40_channel_num);
-    for (j = 0; j < g_bw40_channel_num / 2; j++) {
-        device->bw40_channel[j] = device->channel_info[2 * j];
+    for (k = 0, j = 0; j < g_bw40_channel_num / 2;j++,k += 2) {
+
+        if (spctrm_scn_wireless_channel_group_check(device->channel_info,k,BW_40) == FAIL) {
+            SPCTRM_SCN_DBG_FILE("channel_group_check FAIL %d\r\n",j);
+            SPCTRM_SCN_DBG_FILE("channel_group_check channel %d\r\n",device->channel_info[k].channel);
+            k += 1;
+        }
+
+        SPCTRM_SCN_DBG_FILE("bw 40 channel %d\r\n",device->channel_info[k].channel);
+        device->bw40_channel[j] = device->channel_info[k];
         SPCTRM_SCN_DBG_FILE("\nbw40_channel %d",device->bw40_channel[j].channel);
         /* bw40底噪 */
-        device->bw40_channel[j].floornoise = MAX(device->channel_info[2 * j].floornoise, device->channel_info[2 * j + 1].floornoise);
+        device->bw40_channel[j].floornoise = MAX(device->channel_info[k].floornoise, device->channel_info[k + 1].floornoise);
         /* bw40得分公式 */
         device->bw40_channel[j].score = ((double)1 - calculate_N(&(device->bw40_channel[j])) / 20) *
-                                        (double)((double)1 - (double)(device->channel_info[2 * j].obss_util +
-                                                                      device->channel_info[2 * j + 1].obss_util) / (95 * BW_40 / 20)) * 100;
-        device->bw40_channel[j].rate = device->bw40_channel[j].score /100 * 600 * 0.75;/* bw40公式 */
-        device->bw40_channel[j].score = device->bw40_channel[j].score; /* 干扰得分 */
+                                        (double)((double)1 - (double)(device->channel_info[k].obss_util +
+                                                                      device->channel_info[k + 1].obss_util) / (95 * BW_40 / 20)) * 100;
+        if (strcmp(device->role,"ap") == 0) {
+            device->rssi = 0;
+        }
+        exp_throughput = spctrm_scn_wireless_get_exp_throughput(device);
+        SPCTRM_SCN_DBG_FILE("exp_throughput %f\r\n",exp_throughput);
+
+        device->bw40_channel[j].rate = device->bw40_channel[j].score / 100 * exp_throughput / g_stream_num * g_multi_user_loss[g_stream_num]; /* bw40公式 */
     }
+}
+int spctrm_scn_wireless_channel_group_check(struct channel_info *channel_info,int index,int band) 
+{
+    int i,k;
+    if (channel_info == NULL) {
+        return FAIL;
+    }
+
+    if (band == BW_40) {
+        k = 2;
+    } else if (band == BW_80) {
+        k = 4;
+    } else {
+        return FAIL;
+    }
+
+    for (i = 0;i < k;i++) {
+        if ((channel_info[index].channel + 4 * i) != channel_info[index + i].channel) {
+            return FAIL;
+        }        
+    }
+
 }
 void spctrm_scn_wireless_bw80_channel_score (struct device_info *device)
 {
-    int j;
+    int j,k;
     int bw;
     uint64_t bitmap_2G,bitmap_5G;
+    double exp_throughput;
+    struct device_info *p;
+    double multi_user_loss;
 
     if (device == NULL) {
         SPCTRM_SCN_DBG_FILE("\nparam error");
         return ;
     }
 
-    for (j = 0; j < g_bw80_channel_num; j++) {
-        device->bw80_channel[j] = device->channel_info[4 * j];
+    list_for_each_device(p,j,&g_finished_device_list) {
+        SPCTRM_SCN_DBG_FILE("SN %s \r\n",p->series_no);
+    }
+
+    SPCTRM_SCN_DBG_FILE("g_bw80_channel_num %d",g_bw80_channel_num);
+    for (k = 0,j = 0; j < g_bw80_channel_num / 4; j++,k += 4) {
+        if (spctrm_scn_wireless_channel_group_check(device->channel_info,k,BW_80) == FAIL) {
+            SPCTRM_SCN_DBG_FILE("channel_group_check FAIL %d\r\n",j);
+            SPCTRM_SCN_DBG_FILE("channel_group_check channel %d\r\n",device->channel_info[k].channel);
+            k += 3;
+        }
+ 
+        device->bw80_channel[j] = device->channel_info[k];
         /* bw80底噪 */
-        device->bw80_channel[j].floornoise = MAX(MAX(MAX(device->channel_info[4 * j].floornoise,
-                                                        device->channel_info[4 * j + 1].floornoise),
-                                                         device->channel_info[4 * j + 2].floornoise),
-                                                         device->channel_info[4 * j + 3].floornoise);
+        device->bw80_channel[j].floornoise = MAX(MAX(MAX(device->channel_info[k].floornoise,
+                                                        device->channel_info[k + 1].floornoise),
+                                                         device->channel_info[k + 2].floornoise),
+                                                         device->channel_info[k + 3].floornoise);
         /* bw80得分公式 */
         device->bw80_channel[j].score = ((double)1 - calculate_N(&(device->bw80_channel[j])) / 20) *
-                                        (double)((double)1 - (double)(device->channel_info[4 * j].obss_util +
-                                        device->channel_info[4 * j + 1].obss_util +
-                                        device->channel_info[4 * j + 2].obss_util +
-                                        device->channel_info[4 * j + 3].obss_util) / (95 * BW_80 / 20)) * 100;
-        device->bw80_channel[j].rate = device->bw80_channel[j].score /100 * 1200 * 0.75;
+                                        (double)((double)1 - (double)(device->channel_info[k].obss_util +
+                                        device->channel_info[k + 1].obss_util +
+                                        device->channel_info[k + 2].obss_util +
+                                        device->channel_info[k + 3].obss_util) / (95 * BW_80 / 20)) * 100;
 
-        device->bw80_channel[j].score = device->bw80_channel[j].score; /* 干扰得分 */
+        exp_throughput = spctrm_scn_wireless_get_exp_throughput(device);
+        SPCTRM_SCN_DBG_FILE("exp_throughput %f\r\n",exp_throughput);
+
+        device->bw80_channel[j].rate = device->bw80_channel[j].score /100 * exp_throughput / g_stream_num * g_multi_user_loss[g_stream_num] * 2;
+
+
     }
+
 }
 
 
@@ -1093,6 +1206,75 @@ static int timeout_func()
     return FAIL;
 }
 
+int spctrm_scn_wireless_get_dev_type_enum(struct device_info *device) 
+{
+    if (device == NULL) {
+        return DEV_TYPE_UNKONW;
+    }
+
+    if (strcmp(device->dev_type,"AIRMETRO460F") == 0) {
+        return DEV_TYPE_AIRMETRO460F;
+    } else if (strcmp(device->dev_type,"AIRMETRO460G") == 0) {
+        return DEV_TYPE_AIRMETRO460G;
+    } else if (strcmp(device->dev_type,"AIRMETRO550G-B") == 0) {
+        return DEV_TYPE_AIRMETRO550GB;
+    } else {
+        return DEV_TYPE_UNKONW;
+    }
+}
+struct device_info *spctrm_scn_wireless_get_low_performance_dev(struct device_info *device1,struct device_info *device2) 
+{
+    int dev1,dev2;
+
+    if (device1 == NULL || device2 == NULL) {
+        return NULL;
+    }
+
+    dev1 = spctrm_scn_wireless_get_dev_type_enum(device1);
+    dev2 = spctrm_scn_wireless_get_dev_type_enum(device2);
+
+    if (dev1 <= dev2) {
+        return device1;
+    } else {
+        return device2;
+    }
+}
+static double spctrm_scn_wireless_get_exp_throughput(struct device_info *device_info)
+{
+    double exp_throughput;
+    exp_throughput = 0;
+    struct device_info *p;
+
+    if (device_info->rssi > -58) {
+        exp_throughput = 230;
+    } else if (device_info->rssi >= -66 && device_info->rssi < -58) {
+        exp_throughput = 200;
+    } else if (device_info->rssi >= -70 && device_info->rssi < -66) {
+        exp_throughput = 150;
+    } else if (device_info->rssi >= -78 && device_info->rssi < -70) {
+        exp_throughput = 80;
+    } else if (device_info->rssi >= -70 && device_info->rssi < -78) {
+        exp_throughput = 40;
+    } else if (device_info->rssi >= -78 && device_info->rssi < -85) {
+        exp_throughput = 20;
+    } else if (device_info->rssi >= -85 && device_info->rssi < -90) {
+        exp_throughput = 10;
+    } else if (device_info->rssi >= -90 && device_info->rssi < -95) {
+        exp_throughput = 5;
+    }
+        
+    return exp_throughput;
+}
+
+static double spctrm_scn_wireless_get_exp_ratio(struct device_info *device_info)
+{
+    if (device_info->rssi > -65) {
+
+    } else if (device_info->rssi > -68 && device_info->rssi < -65) {
+
+    }
+    
+}
 inline int spctrm_scn_wireless_channel_check(int channel)
 {
     if (channel < 36 || channel > 181) {

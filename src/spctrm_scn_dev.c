@@ -106,7 +106,7 @@ int spctrm_scn_dev_wds_list(struct device_list *device_list)
     json_object *rbuf_root;
     json_object *list_all_obj;
     json_object *list_pair_obj;
-    json_object *sn_obj,*role_obj,*mac_obj;
+    json_object *sn_obj,*role_obj,*mac_obj,*rssi_obj,*dev_type_obj;
     json_object *list_all_elem ;
     json_object *list_pair_elem;
 
@@ -167,6 +167,8 @@ int spctrm_scn_dev_wds_list(struct device_list *device_list)
                 json_object_put(rbuf_root);
                 return FAIL;
             }
+
+            SPCTRM_SCN_DBG_FILE("SN %s \r\n",json_object_get_string(sn_obj));
             if (strcmp(json_object_get_string(sn_obj),sn) == 0) {
                 SPCTRM_SCN_DBG_FILE("\n%d",i);
                 find_flag = 1;
@@ -205,12 +207,15 @@ int spctrm_scn_dev_wds_list(struct device_list *device_list)
     for (i = 0;i < device_list->list_len;i++) {
         list_pair_elem = json_object_array_get_idx(list_pair_obj,i);
         sn_obj = json_object_object_get(list_pair_elem,"sn");
+
         if (sn_obj == NULL) {
             free(rbuf);
             json_object_put(rbuf_root);
             SPCTRM_SCN_DBG_FILE("\nsn_obj");
             return FAIL;
         }
+        SPCTRM_SCN_DBG_FILE("SN %s \r\n",json_object_get_string(sn_obj));
+
         role_obj = json_object_object_get(list_pair_elem,"role");
         if (role_obj == NULL) {
             free(rbuf);
@@ -218,6 +223,7 @@ int spctrm_scn_dev_wds_list(struct device_list *device_list)
             SPCTRM_SCN_DBG_FILE("\nrole_obj");
             return FAIL;
         }
+        SPCTRM_SCN_DBG_FILE("ROLE %s \r\n",json_object_get_string(role_obj));
         mac_obj = json_object_object_get(list_pair_elem,"mac");
         if (mac_obj == NULL) {
             free(rbuf);
@@ -226,12 +232,34 @@ int spctrm_scn_dev_wds_list(struct device_list *device_list)
             return FAIL;
         }
         strcpy(device_list->device[i].series_no,json_object_get_string(sn_obj));
+        SPCTRM_SCN_DBG_FILE("SN %s \r\n",device_list->device[i].series_no);
+
         strcpy(device_list->device[i].role,json_object_get_string(role_obj));
+        
+        if (strcmp(json_object_get_string(role_obj),"ap") != 0) {
+           rssi_obj = json_object_object_get(list_pair_elem,"rssi");
+            if (json_object_get_string(rssi_obj) != NULL) {
+           device_list->device[i].rssi = atoi(json_object_get_string(rssi_obj));
+           SPCTRM_SCN_DBG_FILE("RSSI %d \r\n",device_list->device[i].rssi);
+         }
+        }
+
+        dev_type_obj = json_object_object_get(list_pair_elem,"dev_type");
+        if (dev_type_obj != NULL) {
+            if (json_object_get_string(dev_type_obj) != NULL) {
+                strcpy(device_list->device[i].dev_type,json_object_get_string(dev_type_obj));
+            } 
+        }
+        
+
+        
+        SPCTRM_SCN_DBG_FILE("ROLE %s \r\n",device_list->device[i].role);
+
         strcpy(device_list->device[i].mac,json_object_get_string(mac_obj));
+
     }
 
     free(rbuf);
     json_object_put(rbuf_root);
     return SUCCESS;
 }
-

@@ -24,7 +24,9 @@ struct device_info {
     char series_no[SN_LEN];
     unsigned char mac[20];
     char role[ROLE_STRING_LEN];
+    char dev_type[40];
     int status;
+    int rssi;
     struct user_input input;
     struct channel_info channel_info[36];
     struct channel_info bw40_channel[18];

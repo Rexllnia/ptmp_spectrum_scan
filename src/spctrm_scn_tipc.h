@@ -35,6 +35,7 @@ typedef struct tipc_recv_packet_head {
     unsigned int type;
     size_t payload_size;
     unsigned int instant;
+    time_t timestamp;
 }tipc_recv_packet_head_t;
 
 typedef struct device_list device_list_t;
