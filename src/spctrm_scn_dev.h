@@ -16,15 +16,21 @@
 #include "spctrm_scn_config.h"
 #include "spctrm_scn_tipc.h"
 
+#define DEV_TYPE_STR_LEN 40
 #define ROLE_STRING_LEN 4
 #define FINISHED 	1
 #define NOT_FINISH	0
+#define IP_ADDR_LEN 17
 
 struct device_info {
     char series_no[SN_LEN];
     unsigned char mac[20];
     char role[ROLE_STRING_LEN];
-    char dev_type[40];
+    char dev_type[DEV_TYPE_STR_LEN];
+    int wan_speed_cap;
+    int port_speed;
+    int port_status;
+    char user_ip[IP_ADDR_LEN];
     int status;
     int rssi;
     struct user_input input;

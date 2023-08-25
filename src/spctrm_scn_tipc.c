@@ -16,7 +16,6 @@ static sem_t receive_finish_semaphore;
 
 int spctrm_scn_tipc_send_start_msg(struct device_list *list,int wait_sec)
 {
-
     struct device_info *p;
     __u32 instant = 0;
     int i;
@@ -108,6 +107,9 @@ int spctrm_scn_tipc_send(__u32 dst_instance,__u32 type,size_t payload_size,char 
     tipc_recv_packet_head_t *head;
     size_t pkt_size;
     int j;
+    struct port_status_list port_list;
+    char ipaddr[IP_ADDR_LEN];
+    struct port_status_list_elem *elem;
 
     if (payload == NULL) {
         return FAIL;
@@ -130,6 +132,16 @@ int spctrm_scn_tipc_send(__u32 dst_instance,__u32 type,size_t payload_size,char 
     head->type = type;
     head->payload_size = payload_size;
     head->timestamp = g_current_time;
+    spctrm_scn_wireless_port_status_init(&port_list);
+    spctrm_scn_common_uci_anonymous_get("sysinfo", "sysinfo", "sysinfo", "wan_ip", ipaddr,IP_ADDR_LEN);
+    SPCTRM_SCN_DBG_FILE("ipaddr %s\r\n",ipaddr);
+    elem = spctrm_scn_wireless_find_uplink_port(&port_list,ipaddr);
+    SPCTRM_SCN_DBG_FILE("port_list.list[index] %s\r\n",elem->ipaddr);
+
+    head->port_speed = elem->speed;
+    head->port_status = elem->status;
+    
+    spctrm_scn_wireless_delete_port_status_list(&port_list);
 
     sd = socket(AF_TIPC, SOCK_RDM, 0);
     if (sd < 0) {
@@ -270,7 +282,7 @@ void *spctrm_scn_tipc_thread()
     continue;
 clear:
     (void)recvfrom(sd, &head, sizeof(head),0,(struct sockaddr *)&client_addr, &alen);
-    
+
     }
     close(sd);
     return NULL;
@@ -295,6 +307,8 @@ static void server_type_scan_reply_cb(tipc_recv_packet_head_t *head,char *pkt)
             if (instant == head->instant) {
                 memcpy(p->channel_info,pkt+sizeof(tipc_recv_packet_head_t),head->payload_size);
                 p->finished_flag = FINISHED;
+                p->port_speed = head->port_speed;
+                p->port_status = head->port_status;
                 SPCTRM_SCN_DBG_FILE("\np->finished_flag %d",p->finished_flag);
                 SPCTRM_SCN_DBG_FILE("\np->channel_info[0].channel %d",p->channel_info[0].channel);
                 SPCTRM_SCN_DBG_FILE("\np->channel_info[0].floornoise %d",p->channel_info[0].floornoise);

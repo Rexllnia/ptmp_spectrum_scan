@@ -10,6 +10,7 @@ lib_param = require "utils.param_check"
 uci = require("uci")
 
 config_file = "/etc/spectrum_scan_cache"
+local rlog_url
 -- read the exist file
 -- @path: File path
 -- @return file content, if the action success; otherwise return nil.
@@ -109,7 +110,12 @@ function module_get(param)
         elseif status["status_code"] == "2" or status["status_code"] == "3" then
             config_tab = cjson_safe.encode(status)
             file_write(config_file,config_tab)
-            res = conn:call("rlog", "upload_stream",{module_name = "spectrumScan",server = "http://apidemo.rj.link/service/api/warnlog?sn=MACCEG20WJL01",data = config_tab })
+            rlog_url = file_read("/etc/spectrum_scan/rlog_server_addr.json")
+            res = conn:call("rlog","module_enable",{module = "spectrumScan"})
+            if res["result"] == "1" then
+                conn:call("rlog", "upload_stream",{module_name = "spectrumScan",server = rlog_url,data = config_tab })
+            end
+            
         else
             config_tab = cjson_safe.encode(status)
         end

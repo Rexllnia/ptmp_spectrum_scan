@@ -3,7 +3,6 @@
 extern struct user_input g_input;
 extern int g_status;
 int spctrm_scn_dev_list_cmp(struct device_list *src_list,struct device_list *dest_list) {
-
     int i,count;
     struct device_info *p;
     count = 0;
@@ -106,7 +105,7 @@ int spctrm_scn_dev_wds_list(struct device_list *device_list)
     json_object *rbuf_root;
     json_object *list_all_obj;
     json_object *list_pair_obj;
-    json_object *sn_obj,*role_obj,*mac_obj,*rssi_obj,*dev_type_obj;
+    json_object *sn_obj,*role_obj,*mac_obj,*rssi_obj,*dev_type_obj,*wan_speed_cap_obj,*user_ip_obj;
     json_object *list_all_elem ;
     json_object *list_pair_elem;
 
@@ -235,7 +234,7 @@ int spctrm_scn_dev_wds_list(struct device_list *device_list)
         SPCTRM_SCN_DBG_FILE("SN %s \r\n",device_list->device[i].series_no);
 
         strcpy(device_list->device[i].role,json_object_get_string(role_obj));
-        
+
         if (strcmp(json_object_get_string(role_obj),"ap") != 0) {
            rssi_obj = json_object_object_get(list_pair_elem,"rssi");
             if (json_object_get_string(rssi_obj) != NULL) {
@@ -246,13 +245,23 @@ int spctrm_scn_dev_wds_list(struct device_list *device_list)
 
         dev_type_obj = json_object_object_get(list_pair_elem,"dev_type");
         if (dev_type_obj != NULL) {
-            if (json_object_get_string(dev_type_obj) != NULL) {
+            if (json_object_get_string(dev_type_obj) != NULL && json_object_get_string_len(dev_type_obj) < DEV_TYPE_STR_LEN) {
                 strcpy(device_list->device[i].dev_type,json_object_get_string(dev_type_obj));
-            } 
+            }
         }
-        
 
-        
+        wan_speed_cap_obj = json_object_object_get(list_pair_elem,"wanSpeedCap");
+        if (wan_speed_cap_obj != NULL) {
+            if (json_object_get_string(wan_speed_cap_obj) != NULL) {
+                device_list->device[i].wan_speed_cap = atoi(json_object_get_string(wan_speed_cap_obj));
+            }
+        }
+        user_ip_obj = json_object_object_get(list_pair_elem,"userIp");
+        if (user_ip_obj != NULL) {
+            if (json_object_get_string(user_ip_obj) != NULL) {
+                memcpy(device_list->device[i].user_ip,json_object_get_string(user_ip_obj),IP_ADDR_LEN);
+            }
+        }
         SPCTRM_SCN_DBG_FILE("ROLE %s \r\n",device_list->device[i].role);
 
         strcpy(device_list->device[i].mac,json_object_get_string(mac_obj));

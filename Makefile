@@ -10,14 +10,14 @@ PKG_CONFIG_DEPENDS :=
 include $(INCLUDE_DIR)/package.mk
  
 define Package/$(PKG_NAME)
-	SECTION:=utils
-	CATEGORY:=Milesight
+	SUBMENU:=Utilities
+	CATEGORY:=Ruijie Properties
 	TITLE:=spectrum_scan utility
 	DEPENDS:=+libuci +libubus +libubox +libdebug +libpthread +libjson-c
 endef
  
 define Package/$(PKG_NAME)/description
-	This is Ubus Test OpenWrt.
+	This is spectrum_scan.
 endef
  
 define Build/Prepare

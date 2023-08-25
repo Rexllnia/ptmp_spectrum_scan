@@ -132,7 +132,6 @@ int spctrm_scn_common_uci_anonymous_get(char *file, char *type, char *name, char
         goto cleanup;
     }
 
-
     uci_foreach_element(&pkg->sections, ele) {
         sec = uci_to_section(ele);
         if (strcmp(sec->type, name) != 0) {

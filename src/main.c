@@ -47,16 +47,15 @@ volatile long g_scan_timestamp;
 extern long g_bitmap_2G,g_bitmap_5G;
 char g_wds_bss[20];
 
-
 pthread_mutex_t g_mutex,g_scan_schedule_mutex,g_finished_device_list_mutex;
 pthread_t pid1, pid2 ,pid3;
 sem_t g_semaphore;
 
 int main(int argc, char **argv)
 {
+    int fd;
     FILE *fp;
     int ret;
-
     ret = FAIL;
     sem_init(&g_semaphore,0,0);
     g_input.scan_time = MIN_SCAN_TIME;
@@ -66,15 +65,10 @@ int main(int argc, char **argv)
     pthread_mutex_init(&g_mutex, NULL);
     pthread_mutex_init(&g_scan_schedule_mutex,NULL);
     pthread_mutex_init(&g_finished_device_list_mutex,NULL);
-    
-
-    
-    
-
     if (spectrm_scn_debug_init() == FAIL) {
         return FAIL;
     }
-
+    SPCTRM_SCN_DBG_FILE("version 2\r\n");
     spctrm_scn_common_cmd("mkdir /tmp/spectrum_scan",NULL);
     fp = fopen("/tmp/spectrum_scan/curl_pid","w+");
     if (fp == NULL) {
@@ -89,15 +83,25 @@ int main(int argc, char **argv)
         return FAIL;
     }
     spctrm_scn_wireless_multi_user_loss_init();
+
     if (g_mode == AP_MODE) {
+
         if (access("/etc/spectrum_scan/current_channel_info",F_OK) == FAIL) {
-            creat("/etc/spectrum_scan/current_channel_info",0777);
+            fd = creat("/etc/spectrum_scan/current_channel_info",0777);
+            if (fd < 0) {
+                return FAIL;
+            }
+            close(fd);
         }
         if (access("/etc/spectrum_scan_cache",F_OK) != FAIL) {
             SPCTRM_SCN_DBG_FILE("\nfile exit");
             spctrm_scn_wireless_check_status("/etc/spectrum_scan_cache");
         } else {
-            creat("/etc/spectrum_scan_cache",0777);
+            fd = creat("/etc/spectrum_scan_cache",0777);
+            if (fd < 0) {
+                return FAIL;
+            }
+            close(fd);
         }
 
         SPCTRM_SCN_DBG_FILE("\nap mode");
